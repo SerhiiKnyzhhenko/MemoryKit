@@ -17,7 +17,7 @@ private:
 	void* m_start_;
 	void* m_current_pos_;
 	size_t m_total_size_;
-
+	dwad
 public:
 	StackAllocator(size_t size);
 	~StackAllocator();
