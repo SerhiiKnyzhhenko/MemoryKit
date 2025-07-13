@@ -5,13 +5,26 @@
 #include <cstddef> // Для size_t
 #include <cstdint> // Для uintptr_t
 #include <iostream>
-#include "Block.h"
+
 
 #ifdef _WIN32
 #include <windows.h>
 #else
 #include <sys/mman.h>
 #endif
+
+struct Block {
+    size_t size_;
+    bool is_free_;
+
+    union {
+        struct {
+            Block* next_free;
+            Block* prev_free;
+        }free_block_pointers;
+        char user_data[1];
+    };
+};
 
 class GeneralPurposeAllocator : public IAllocator {
 

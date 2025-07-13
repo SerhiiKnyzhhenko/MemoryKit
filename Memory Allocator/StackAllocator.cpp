@@ -1,5 +1,6 @@
 #include "StackAllocator.h"
 
+
 StackAllocator::StackAllocator(size_t size) {
 
     size_t alignment = 16;
@@ -27,47 +28,40 @@ StackAllocator::~StackAllocator() {
 
 void* StackAllocator::allocate(size_t required_size) {
 
-    size_t free_memory = reinterpret_cast<size_t>(
-        reinterpret_cast<uintptr_t>(m_start_) + m_total_size_ - reinterpret_cast<uintptr_t>(m_current_pos_)
-        );
+    size_t aligned_size = (required_size + ALLIGMENT - 1) & ~(ALLIGMENT - 1);
 
-    if (required_size > free_memory)
+    const size_t total_chunk_size = METADATA_SIZE + aligned_size;
+
+    if ((uintptr_t)m_current_pos_ + total_chunk_size > (uintptr_t)m_start_ + m_total_size_) {
         return nullptr;
+    }
 
-    size_t alignment = 16;
-    size_t alligment_size = (required_size + alignment - 1) & ~(alignment - 1);
+    m_last_allocation_size_ = total_chunk_size;
 
-    update_footer(m_current_pos_, alligment_size);
+    void* header_address = m_current_pos_;
 
-    m_current_pos_ = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(m_current_pos_) + alligment_size + sizeof(size_t));
-   
-    return m_current_pos_;
+    *static_cast<void**>(header_address) = header_address; 
+
+    void* user_ptr = (char*)header_address + METADATA_SIZE;
+
+    m_current_pos_ = (char*)m_current_pos_ + total_chunk_size;
+
+    return user_ptr;
+
+}
+
+void StackAllocator::pop() {
+    
+    if (m_start_ == m_current_pos_)
+        return;
+
+    m_current_pos_ = (char*)m_current_pos_ - m_last_allocation_size_;
 
 }
 
-void StackAllocator::deallocate(void* pos) {
-
-    size_t* left_pos_foooter = reinterpret_cast<size_t*>(
-        reinterpret_cast<uintptr_t>(pos) - sizeof(size_t)
-        );
-
-    m_current_pos_ = reinterpret_cast<void*>(
-        reinterpret_cast<uintptr_t>(pos) - *left_pos_foooter
-        );
-
-}
 
 void StackAllocator::clear() {
 
     m_current_pos_ = m_start_;
-
-}
-
-void StackAllocator::update_footer(void* pos, size_t alligment_size) {
-
-    size_t* current_pos_footer = reinterpret_cast<size_t*>(
-        reinterpret_cast<uintptr_t>(pos) + alligment_size - sizeof(size_t)
-        );
-    *current_pos_footer = alligment_size;
 
 }
