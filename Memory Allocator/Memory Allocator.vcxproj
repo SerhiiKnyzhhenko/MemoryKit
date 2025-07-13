@@ -130,6 +130,7 @@
     <ClCompile Include="GeneralPurposeAllocator.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PoolAllocator.cpp" />
+    <ClCompile Include="StackAllocator.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Block.h" />
@@ -137,6 +138,7 @@
     <ClInclude Include="GeneralPurposeAllocator.h" />
     <ClInclude Include="IAllocator.h" />
     <ClInclude Include="PoolAllocator.h" />
+    <ClInclude Include="StackAllocator.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -4,12 +4,12 @@
 PoolAllocator::PoolAllocator(size_t chunk_size, size_t num_chunks) : chunk_size_(chunk_size), num_chunks_(num_chunks) {
 	
     size_t alignment = 16;
-    size_t m_totalSize = ((chunk_size_ * num_chunks) + alignment - 1) & ~(alignment - 1);
+    size_t m_total_size = ((chunk_size_ * num_chunks) + alignment - 1) & ~(alignment - 1);
 
 #ifdef _WIN32
-    m_start_ = VirtualAlloc(NULL, m_totalSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    m_start_ = VirtualAlloc(NULL, m_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 #else
-    m_start = mmap(nullptr, m_totalSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    m_start_ = mmap(nullptr, m_total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 #endif
 
     m_free_list_head = reinterpret_cast<Chunk*>(m_start_);
@@ -29,7 +29,7 @@ PoolAllocator::~PoolAllocator() {
 #ifdef _WIN32
     VirtualFree(m_start_, 0, MEM_RELEASE);
 #else
-    munmap(m_start, m_totalSize);
+    munmap(m_start_, m_total_size_);
 #endif
 
 }

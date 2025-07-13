@@ -16,10 +16,10 @@
 class GeneralPurposeAllocator : public IAllocator {
 
 private:
-    Block* m_free_list_head = nullptr;
-    void* m_start = nullptr;
-    void* m_current = nullptr;
-    size_t m_totalSize = 0;
+    Block* m_free_list_head_ = nullptr;
+    void* m_start_ = nullptr;
+    void* m_current_ = nullptr;
+    size_t m_total_size_ = 0;
 
 public:
     GeneralPurposeAllocator(size_t size);
