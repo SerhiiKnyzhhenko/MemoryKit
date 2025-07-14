@@ -1,24 +1,26 @@
 #include <iostream>
-#include "IAllocator.h"
-#include <assert.h>
+#include <vector>
+#include <chrono>
+#include <numeric>
 
 
-#include "GeneralPurposeAllocator.h" // <-- Замените на имя вашего файла
+#include "GeneralPurposeAllocator.h"
 #include "PoolAllocator.h"
 #include "StackAllocator.h"
 
 
 
-
 int main() {
+   
+    StackAllocator stack = StackAllocator(1000);
+
+    char* p = (char*)stack.allocate(100);
+    void* p1 = stack.allocate(800);
+
+    *p = 'c';
+
+     stack.pop();
     
-    StackAllocator stack(1000);
-    
-    size_t* p = static_cast<size_t*>(stack.allocate(1));
-
-    stack.pop();
-
-
 
     return 0;
 }

@@ -2,6 +2,7 @@
 #define TESTS_H
 
 #include <iostream>
+#include <assert.h>
 
 void print_test_header(const std::string& test_name);
 

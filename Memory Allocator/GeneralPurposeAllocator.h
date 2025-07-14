@@ -5,7 +5,7 @@
 #include <cstddef> // Для size_t
 #include <cstdint> // Для uintptr_t
 #include <iostream>
-
+#include <stdexcept>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -16,6 +16,7 @@
 struct Block {
     size_t size_;
     bool is_free_;
+    bool is_mmapped_;
 
     union {
         struct {
@@ -33,6 +34,8 @@ private:
     void* m_start_ = nullptr;
     void* m_current_ = nullptr;
     size_t m_total_size_ = 0;
+    const size_t LARGE_ALLOC_THRESHOLD = 128 * 1024;
+    const size_t alignment = 16;
 
 public:
     GeneralPurposeAllocator(size_t size);
@@ -42,6 +45,8 @@ public:
     void deallocate(void* user_data_ptr) override;
 
 private:
+    void* allocate_from_free_list(size_t requested_size);
+    void* allocate_large_block(size_t required_size);
     Block* find_first_fit(size_t required_size);
     Block* split_block(Block* block_to_split, size_t required_size);
     void update_freelist_after_allocation(Block* old_block, Block* new_block);
