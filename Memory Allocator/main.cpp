@@ -3,14 +3,15 @@
 #include <chrono>
 #include <numeric>
 #include <cassert>
-
+#include "tests.h"
 
 
 
 
 int main() {
    
-    run_stack_allocator_tests();
+    run_pool_allocator_tests();
+
     
 
     return 0;

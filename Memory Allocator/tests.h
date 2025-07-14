@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <assert.h>
+#include <vector>
 
 #include "GeneralPurposeAllocator.h"
 #include "PoolAllocator.h"

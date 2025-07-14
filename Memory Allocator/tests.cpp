@@ -241,11 +241,110 @@ void run_general_purpose_allocator_tests() {
 
 //-------------------------- TESTS FOR PoolAllocator --------------------------//
 
-void empty_free_list() {
+/**
+ * @brief Tests the out-of-memory condition.
+ * @details Allocates all available chunks from the pool and then asserts
+ * that the next allocation request returns nullptr.
+ */
+void test_pool_out_of_memory() {
+    print_test_header("Test 1: Out of Memory");
+    PoolAllocator alloc(64, 10);
 
+    // Arrange & Act: Exhaust the pool
+    for (size_t i = 0; i < 10; i++) {
+        alloc.allocate(1);
+    }
+
+    // Act: Request one more chunk
+    void* p = alloc.allocate(1);
+
+    // Assert: The pointer must be null
+    assert(p == nullptr && "Allocator did not return nullptr when pool was empty!");
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief Tests the basic allocate-deallocate-allocate cycle.
+ * @details Verifies that a deallocated chunk is correctly returned to the
+ * front of the free list and is reused on the next allocation.
+ */
+void test_allocate_deallocate_reuse() {
+    print_test_header("Test 2: Reuse Freed Chunk");
+    PoolAllocator alloc(64, 10);
+
+    // Arrange
+    void* p1 = alloc.allocate(1);
+
+    // Act
+    alloc.deallocate(p1);
+    void* p2 = alloc.allocate(1);
+
+    // Assert: The same memory address should be returned
+    assert(p1 == p2 && "Allocator did not reuse the chunk!");
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief Tests a full lifecycle of the pool.
+ * @details Allocates all chunks, deallocates all of them, and then
+ * re-allocates them all again to ensure the allocator state is not corrupted.
+ */
+void test_full_cycle() {
+    print_test_header("Test 3: Full Lifecycle");
+    PoolAllocator alloc(64, 10);
+    std::vector<void*> allocated_pointers;
+    allocated_pointers.reserve(10);
+
+    // Arrange: Allocate all chunks
+    for (size_t i = 0; i < 10; i++) {
+        allocated_pointers.push_back(alloc.allocate(1));
+    }
+
+    // Act: Deallocate all chunks
+    for (void* p : allocated_pointers) {
+        alloc.deallocate(p);
+    }
+
+    // Assert: All 10 chunks should be available for allocation again
+    for (size_t i = 0; i < 10; i++) {
+        void* p = alloc.allocate(1);
+        assert(p != nullptr && "A chunk was lost after a full deallocation cycle!");
+    }
+
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief Tests robustness against double deallocation.
+ * @details Ensures that freeing the same pointer twice does not corrupt
+ * the internal free list, which could lead to crashes or memory leaks.
+ */
+void test_double_free() {
+    print_test_header("Test 4: Double Free");
+    PoolAllocator alloc(64, 10);
+
+    // Arrange
+    void* p1 = alloc.allocate(1);
+
+    // Act
+    alloc.deallocate(p1);
+    alloc.deallocate(p1); // Second deallocation should be handled gracefully
+
+    // Assert: We should still be able to allocate all 10 chunks.
+    // If the double free corrupted the list (e.g., created a cycle), this loop would fail.
+    for (size_t i = 0; i < 10; i++) {
+        void* p = alloc.allocate(1);
+        assert(p != nullptr && "Double free corrupted the free list!");
+    }
+
+    std::cout << "  PASS" << std::endl;
 }
 
 // --- Main test runner function ---
 void run_pool_allocator_tests() {
-
+    std::cout << "\n--- Testing PoolAllocator ---";
+    test_pool_out_of_memory();
+    test_allocate_deallocate_reuse();
+    test_full_cycle();
+    test_double_free();
 }
