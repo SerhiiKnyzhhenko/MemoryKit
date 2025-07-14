@@ -1,111 +1,251 @@
 #include "tests.h"
 
-//// Вспомогательная функция для печати заголовков тестов
-//void print_test_header(const std::string& test_name) {
-//    std::cout << "\n--- " << test_name << " ---\n";
-//}
-//
-//// Тест 1: Простой цикл выделения и освобождения. Проверяет базовую работу и слияние в один блок.
-//void test_simple_cycle() {
-//    print_test_header("Test 1: Simple Allocate/Free Cycle & Coalescing");
-//    GeneralPurposeAllocator alloc(1024);
-//
-//    void* p1 = alloc.allocate(100);
-//    void* p2 = alloc.allocate(200);
-//    void* p3 = alloc.allocate(300);
-//
-//    std::cout << "Allocated p1: " << p1 << std::endl;
-//    std::cout << "Allocated p2: " << p2 << std::endl;
-//    std::cout << "Allocated p3: " << p3 << std::endl;
-//
-//    alloc.deallocate(p1);
-//    alloc.deallocate(p2);
-//    alloc.deallocate(p3);
-//
-//    std::cout << "All blocks freed. Should result in one large free block." << std::endl;
-//    // В отладчике m_free_list_head->size_ должен быть равен m_totalSize
-//}
-//
-//// Тест 2: Повторное использование освобождённого блока.
-//void test_reuse() {
-//    print_test_header("Test 2: Block Reuse");
-//    GeneralPurposeAllocator alloc(1024);
-//
-//    void* p1 = alloc.allocate(128);
-//    void* p2 = alloc.allocate(128);
-//    std::cout << "Allocated p1 at: " << p1 << std::endl;
-//    std::cout << "Allocated p2 at: " << p2 << std::endl;
-//
-//    alloc.deallocate(p1); // Освобождаем первый блок
-//    std::cout << "Freed p1." << std::endl;
-//
-//    void* p3 = alloc.allocate(128); // Запрашиваем блок такого же размера
-//    std::cout << "Allocated p3 at: " << p3 << std::endl;
-//
-//    if (p1 == p3) {
-//        std::cout << "PASS: Allocator correctly reused the freed block." << std::endl;
-//    }
-//    else {
-//        std::cout << "FAIL: Allocator did not reuse the freed block." << std::endl;
-//    }
-//}
-//
-//// Тест 3: Слияние с правым соседом.
-//void test_coalesce_right() {
-//    print_test_header("Test 3: Coalesce with Right Neighbor");
-//    GeneralPurposeAllocator alloc(1024);
-//
-//    void* p1 = alloc.allocate(100);
-//    void* p2 = alloc.allocate(100);
-//    void* p3 = alloc.allocate(100);
-//
-//    alloc.deallocate(p2);
-//    alloc.deallocate(p1); // Должен объединиться с p2
-//
-//    std::cout << "Freed p2, then p1. Should coalesce." << std::endl;
-//    // В отладчике должен быть один свободный блок размером (100+Hdr) + (100+Hdr)
-//}
-//
-//// Тест 4: Слияние с левым соседом.
-//void test_coalesce_left() {
-//    print_test_header("Test 4: Coalesce with Left Neighbor");
-//    GeneralPurposeAllocator alloc(1024);
-//
-//    void* p1 = alloc.allocate(100);
-//    void* p2 = alloc.allocate(100);
-//    void* p3 = alloc.allocate(100);
-//
-//    alloc.deallocate(p1);
-//
-//    // Установите здесь точку останова. m_free_list_head должен указывать на блок p1
-//    alloc.deallocate(p2); // Должен найти p1 слева и объединиться с ним
-//
-//    std::cout << "Freed p1, then p2. Should coalesce." << std::endl;
-//    // Результат должен быть таким же, как в тесте 3
-//}
-//
-//// Тест 5: Слияние в обе стороны ("Сэндвич").
-//void test_sandwich_coalesce() {
-//    print_test_header("Test 5: Sandwich Coalesce (Both Sides)");
-//    GeneralPurposeAllocator alloc(1024);
-//
-//    void* p1 = alloc.allocate(100);
-//    void* p2 = alloc.allocate(100);
-//    void* p3 = alloc.allocate(100);
-//    void* p4 = alloc.allocate(100);
-//
-//    alloc.deallocate(p2); // Освобождаем "начинку"
-//    alloc.deallocate(p4); // Освобождаем блок справа от "хлеба"
-//
-//    // Установите здесь точку останова. В списке свободных должны быть блоки p2 и p4.
-//    alloc.deallocate(p3); // Освобождаем "хлеб". Должен слиться с p2 и p4.
-//
-//    std::cout << "Freed p2, p4, then p3. Should result in a 3-block merge." << std::endl;
-//    // В отладчике должен появиться большой свободный блок размером ~3*(100+Hdr)
-//}
-//
-//void test_GeneralPurposeAllocator() {
-//
-//    
-//
-//}
+// Helper function to print test headers
+void print_test_header(const std::string& test_name) {
+    std::cout << "\n--- " << test_name << " ---\n";
+}
+
+
+//-------------------------- TESTS FOR StackAllocator --------------------------//
+
+/**
+ * @brief Tests that basic allocation works and that clear() resets the allocator.
+ * @details It allocates some memory, clears the allocator, and then allocates again.
+ * The pointer from the first and third allocations should be identical.
+ */
+void test_stack_alloc_and_clear() {
+    print_test_header("Test 1: Basic Allocation & clear()");
+    StackAllocator alloc(1024);
+
+    // Arrange & Act
+    void* p1 = alloc.allocate(100);
+    alloc.allocate(200);
+    alloc.clear();
+    void* p2 = alloc.allocate(100);
+
+    // Assert
+    assert(p1 == p2 && "clear() did not reset the stack pointer!");
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief Tests the LIFO (Last-In, First-Out) deallocation via pop().
+ * @details It allocates two blocks, pops the second one, and then re-allocates
+ * a block of the same size. The address should be the same.
+ */
+void test_stack_alloc_pop() {
+    print_test_header("Test 2: LIFO pop()");
+    StackAllocator alloc(1024);
+
+    // Arrange & Act
+    alloc.allocate(100); // First allocation
+    void* p2_before = alloc.allocate(200); // The allocation we will pop
+    alloc.pop(); // Pop the last allocation
+    void* p2_after = alloc.allocate(200); // Re-allocate with the same size
+
+    // Assert
+    assert(p2_before == p2_after && "pop() did not roll back the stack correctly!");
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief Tests the out-of-memory behavior.
+ * @details Ensures the allocator returns nullptr when a request cannot be satisfied,
+ * without crashing.
+ */
+void test_stack_out_of_memory() {
+    print_test_header("Test 3: Out of Memory");
+    StackAllocator alloc(256);
+
+    // Arrange & Act
+    void* p1 = alloc.allocate(200);
+    void* p2 = alloc.allocate(100); // This allocation should fail
+
+    // Assert
+    assert(p1 != nullptr && "Initial allocation failed!");
+    assert(p2 == nullptr && "Allocator did not return nullptr when out of memory!");
+    std::cout << "  PASS" << std::endl;
+}
+
+
+// --- Main test runner function ---
+void run_stack_allocator_tests() {
+    print_test_header("Testing StackAllocator");
+    test_stack_alloc_and_clear();
+    test_stack_alloc_pop();
+    test_stack_out_of_memory();
+}
+
+
+
+//-------------------------- TESTS FOR GeneralPurposeAllocator --------------------------//
+
+/**
+ * @brief Tests a simple cycle of allocations and deallocations.
+ * @details This test ensures that after all blocks are freed, they coalesce back into a single large block,
+ * allowing a subsequent large allocation to succeed.
+ */
+void test_simple_cycle() {
+    print_test_header("Test 1: Simple Allocate/Free Cycle & Coalescing");
+    GeneralPurposeAllocator alloc(1024);
+
+    // Arrange
+    void* p1 = alloc.allocate(100);
+    void* p2 = alloc.allocate(200);
+    void* p3 = alloc.allocate(300);
+
+    // Act
+    alloc.deallocate(p1);
+    alloc.deallocate(p2);
+    alloc.deallocate(p3);
+
+    // Assert
+    // If coalescing worked, we should have a single large free block.
+    // A new allocation almost the size of the total arena should succeed.
+    void* p4 = alloc.allocate(1000);
+    assert(p4 != nullptr && "Coalescing failed, not enough contiguous space.");
+
+    std::cout << "PASS" << std::endl;
+}
+
+/**
+ * @brief Tests if the allocator reuses a freed memory block for a new allocation of the same size.
+ */
+void test_reuse() {
+    print_test_header("Test 2: Block Reuse");
+    GeneralPurposeAllocator alloc(1024);
+
+    // Arrange
+    void* p1 = alloc.allocate(128);
+    alloc.allocate(128); // Allocate another block to prevent merging with the end of the arena
+
+    // Act
+    alloc.deallocate(p1);
+    void* p3 = alloc.allocate(128); // Request a block of the same size
+
+    // Assert
+    assert(p1 == p3 && "Allocator did not reuse the freed block.");
+
+    std::cout << "PASS" << std::endl;
+}
+
+/**
+ * @brief Tests if a freed block correctly merges with its right neighbor.
+ */
+void test_coalesce_right() {
+    print_test_header("Test 3: Coalesce with Right Neighbor");
+    GeneralPurposeAllocator alloc(1024);
+
+    // Arrange
+    void* p1 = alloc.allocate(100);
+    void* p2 = alloc.allocate(100);
+    alloc.allocate(100); // Sentinel block
+
+    // Act
+    alloc.deallocate(p1);
+    alloc.deallocate(p2); // Deallocating p2 should trigger a coalesce with p1 (its left neighbor)
+
+    // Assert
+    // If p1 and p2 merged, a new allocation of 200 should fit perfectly.
+    void* p4 = alloc.allocate(200);
+    assert(p4 != nullptr && "Right-side coalescing failed.");
+
+    std::cout << "PASS" << std::endl;
+}
+
+/**
+ * @brief Tests if a freed block correctly merges with its left neighbor.
+ */
+void test_coalesce_left() {
+    print_test_header("Test 4: Coalesce with Left Neighbor");
+    GeneralPurposeAllocator alloc(1024);
+
+    // Arrange
+    void* p1 = alloc.allocate(100);
+    void* p2 = alloc.allocate(100);
+    alloc.allocate(100); // Sentinel block
+
+    // Act
+    alloc.deallocate(p2);
+    alloc.deallocate(p1); // Deallocating p1 should trigger a coalesce with p2 (its right neighbor)
+
+    // Assert
+    // If p1 and p2 merged, a new allocation of 200 should fit perfectly.
+    void* p4 = alloc.allocate(200);
+    assert(p4 != nullptr && "Left-side coalescing failed.");
+
+    std::cout << "PASS" << std::endl;
+}
+
+/**
+ * @brief Tests if a block merges with free neighbors on both sides simultaneously.
+ */
+void test_sandwich_coalesce() {
+    print_test_header("Test 5: Sandwich Coalesce (Both Sides)");
+    GeneralPurposeAllocator alloc(1024);
+
+    // Arrange
+    alloc.allocate(100); // p1, will remain allocated
+    void* p2 = alloc.allocate(100);
+    void* p3 = alloc.allocate(100);
+    void* p4 = alloc.allocate(100);
+
+    // Act
+    alloc.deallocate(p2);
+    alloc.deallocate(p4);
+    alloc.deallocate(p3); // Freeing p3 should cause it to merge with p2 and p4.
+
+    // Assert
+    // A new block of 300 should now fit into the merged space.
+    void* p5 = alloc.allocate(300);
+    assert(p5 != nullptr && "Sandwich coalescing failed.");
+
+    std::cout << "PASS" << std::endl;
+}
+
+/**
+ * @brief Tests the separate allocation path for large blocks (>128 KB).
+ */
+void test_large_block_allocation() {
+    print_test_header("Test 6: Large Block Allocation (>128KB)");
+    GeneralPurposeAllocator alloc(1024); // Main arena size is small
+
+    // Arrange & Act
+    // This allocation should bypass the main arena and use VirtualAlloc/mmap directly.
+    const size_t large_size = 256 * 1024;
+    void* p_large = alloc.allocate(large_size);
+
+    // Assert
+    assert(p_large != nullptr && "Large block allocation failed.");
+
+    // Act
+    alloc.deallocate(p_large); // Should call VirtualFree/munmap.
+
+    std::cout << "PASS" << std::endl;
+}
+
+
+// --- Main test runner function ---
+void run_general_purpose_allocator_tests() {
+    print_test_header("Testing GeneralPurposeAllocator");
+    test_simple_cycle();
+    test_reuse();
+    test_coalesce_right();
+    test_coalesce_left();
+    test_sandwich_coalesce();
+    test_large_block_allocation();
+}
+
+
+
+
+//-------------------------- TESTS FOR PoolAllocator --------------------------//
+
+void empty_free_list() {
+
+}
+
+// --- Main test runner function ---
+void run_pool_allocator_tests() {
+
+}

@@ -2,7 +2,7 @@
 
 GeneralPurposeAllocator::GeneralPurposeAllocator(size_t size) {
 
-    m_total_size_ = (size + alignment - 1) & ~(alignment - 1);
+    m_total_size_ = (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 
 #ifdef _WIN32
     m_start_ = VirtualAlloc(NULL, m_total_size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -109,7 +109,7 @@ void* GeneralPurposeAllocator::allocate_from_free_list(size_t required_size) {
 
 void* GeneralPurposeAllocator::allocate_large_block(size_t required_size) {
 
-    size_t aligment_size = (required_size + alignment - 1) & ~(alignment - 1);
+    size_t aligment_size = (required_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
     size_t total_size = aligment_size + sizeof(Block);
 
     void* block_start = nullptr;

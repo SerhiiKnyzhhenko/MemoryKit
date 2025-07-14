@@ -35,7 +35,7 @@ private:
     void* m_current_ = nullptr;
     size_t m_total_size_ = 0;
     const size_t LARGE_ALLOC_THRESHOLD = 128 * 1024;
-    const size_t alignment = 16;
+    const size_t ALIGNMENT = 16;
 
 public:
     GeneralPurposeAllocator(size_t size);
