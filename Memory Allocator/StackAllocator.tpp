@@ -1,7 +1,6 @@
-#include "StackAllocator.h"
 
-
-StackAllocator::StackAllocator(size_t size) {
+template<typename T>
+StackAllocator<T>::StackAllocator(size_t size) {
 
     m_total_size_ = (size + ALLIGMENT - 1) & ~(ALLIGMENT - 1);
 
@@ -22,7 +21,8 @@ StackAllocator::StackAllocator(size_t size) {
     m_last_header_ = nullptr;
 }
 
-StackAllocator::~StackAllocator() {
+template<typename T>
+StackAllocator<T>::~StackAllocator() {
 
 #ifdef _WIN32
     VirtualFree(m_start_, 0, MEM_RELEASE);
@@ -32,8 +32,8 @@ StackAllocator::~StackAllocator() {
 
 }
 
-void* StackAllocator::allocate(size_t required_size) {
-
+template<typename T>
+T* StackAllocator<T>::allocate(size_t required_size) {
     size_t aligned_size = (required_size + ALLIGMENT - 1) & ~(ALLIGMENT - 1);
     size_t total_size = sizeof(StackHeader) + aligned_size;
 
@@ -43,33 +43,27 @@ void* StackAllocator::allocate(size_t required_size) {
 
     StackHeader* new_header = (StackHeader*)m_current_pos_;
     new_header->previous_header = m_last_header_;
-    
-    m_last_header_ = new_header;
 
+    m_last_header_ = new_header;
     m_current_pos_ = (char*)m_current_pos_ + total_size;
 
-    return (char*)new_header + sizeof(StackHeader);
-
+    return static_cast<T*>(static_cast<void*>((char*)new_header + sizeof(StackHeader)));
 }
 
-void StackAllocator::pop() {
-    
+template<typename T>
+void StackAllocator<T>::pop() {
     if (m_last_header_ == nullptr)
         return;
 
     void* new_current_pos = m_last_header_;
-
     StackHeader* prev_header = m_last_header_->previous_header;
 
     m_current_pos_ = new_current_pos;
-
     m_last_header_ = prev_header;
-    
 }
 
-
-void StackAllocator::clear() {
-
+template<typename T>
+void StackAllocator<T>::clear() {
     m_current_pos_ = m_start_;
-
+    m_last_header_ = nullptr;
 }

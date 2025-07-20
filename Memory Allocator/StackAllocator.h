@@ -1,7 +1,6 @@
 #ifndef STACKALLOCATOR_H
 #define STACKALLOCATOR_H
 
-#include "IAllocator.h"
 #include <cstddef> // Для size_t
 #include <cstdint> 
 #include <stdexcept>
@@ -16,7 +15,8 @@ struct StackHeader {
 	StackHeader* previous_header;
 };
 
-class StackAllocator : public IAllocator {
+template<typename T>
+class StackAllocator {
 
 private:
 	void* m_start_ = nullptr;
@@ -29,15 +29,12 @@ public:
 	StackAllocator(size_t size);
 	~StackAllocator();
 
-	void* allocate(size_t required_size) override;
+	[[nodiscard]] T* allocate(size_t required_size);
 	void pop();
 	void clear();
 
-private:
-	void deallocate(void*) override {};
 };
 
+#include "StackAllocator.tpp"
+
 #endif // !STACKALLOCATOR_H
-
-
-

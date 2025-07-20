@@ -1,7 +1,6 @@
 #ifndef GENERALPURPOSEALLOCATOR_H
 #define GENERALPURPOSEALLOCATOR_H
 
-#include "IAllocator.h"
 #include <cstddef> // Для size_t
 #include <cstdint> // Для uintptr_t
 #include <iostream>
@@ -27,12 +26,12 @@ struct Block {
     };
 };
 
-class GeneralPurposeAllocator : public IAllocator {
+template<typename T>
+class GeneralPurposeAllocator {
 
 private:
     Block* m_free_list_head_ = nullptr;
     void* m_start_ = nullptr;
-    void* m_current_ = nullptr;
     size_t m_total_size_ = 0;
     const size_t LARGE_ALLOC_THRESHOLD = 128 * 1024;
     const size_t ALIGNMENT = 16;
@@ -41,12 +40,12 @@ public:
     GeneralPurposeAllocator(size_t size);
     ~GeneralPurposeAllocator();
 
-    void* allocate(size_t requested_size) override;
-    void deallocate(void* user_data_ptr) override;
+    T* allocate(T n);
+    void deallocate(T* user_data_ptr);
 
 private:
-    void* allocate_from_free_list(size_t requested_size);
-    void* allocate_large_block(size_t required_size);
+    T* allocate_from_free_list(size_t requested_size);
+    T* allocate_large_block(size_t required_size);
     Block* find_first_fit(size_t required_size);
     Block* split_block(Block* block_to_split, size_t required_size);
     void update_freelist_after_allocation(Block* old_block, Block* new_block);
@@ -58,5 +57,7 @@ private:
     void update_footer(Block* block);
 
 };
+
+#include "GeneralPurposeAllocator.tpp"
 
 #endif // !GENERALPURPOSEALLOCATOR_H

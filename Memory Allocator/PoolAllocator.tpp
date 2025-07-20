@@ -7,8 +7,14 @@ PoolAllocator<T>::PoolAllocator(size_t num_chunks) : chunk_size_(std::max(sizeof
 
 #ifdef _WIN32
     m_start_ = VirtualAlloc(NULL, m_total_size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (m_start_ == NULL) {
+        throw std::bad_alloc();
+    }
 #else
     m_start_ = mmap(nullptr, m_total_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (m_start_ == MAP_FAILED) {
+        throw std::bad_alloc();
+    }
 #endif
 
     m_free_list_head = reinterpret_cast<Chunk*>(m_start_);

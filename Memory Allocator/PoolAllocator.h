@@ -3,6 +3,7 @@
 
 #include <cstddef> // Для size_t
 #include <cstdint>
+#include <stdexcept>
 #include <algorithm>
 
 #ifdef _WIN32
@@ -15,14 +16,8 @@ struct Chunk {
     Chunk* next_free;
 };
 
-template <typename T>
+template<typename T>
 class PoolAllocator {
-public:
-    explicit PoolAllocator(size_t num_chunks);
-    ~PoolAllocator();
-
-    [[nodiscard]] T* allocate();
-    void deallocate(T* data);
 
 private:
     void* m_start_ = nullptr;
@@ -30,6 +25,14 @@ private:
     size_t chunk_size_;
     size_t num_chunks_;
     size_t m_total_size_;
+
+public:
+    explicit PoolAllocator(size_t num_chunks);
+    ~PoolAllocator();
+
+    [[nodiscard]] T* allocate();
+    void deallocate(T* data);
+
 };
 
 #include "PoolAllocator.tpp"

@@ -15,7 +15,7 @@ void print_test_header(const std::string& test_name) {
  */
 void test_stack_alloc_and_clear() {
     print_test_header("Test 1: Basic Allocation & clear()");
-    StackAllocator alloc(1024);
+    StackAllocator<int> alloc(1024);
 
     // Arrange & Act
     void* p1 = alloc.allocate(100);
@@ -35,7 +35,7 @@ void test_stack_alloc_and_clear() {
  */
 void test_stack_alloc_pop() {
     print_test_header("Test 2: LIFO pop()");
-    StackAllocator alloc(1024);
+    StackAllocator<int> alloc(1024);
 
     // Arrange & Act
     alloc.allocate(100); // First allocation
@@ -55,7 +55,7 @@ void test_stack_alloc_pop() {
  */
 void test_stack_out_of_memory() {
     print_test_header("Test 3: Out of Memory");
-    StackAllocator alloc(256);
+    StackAllocator<int> alloc(256);
 
     // Arrange & Act
     void* p1 = alloc.allocate(200);
@@ -85,38 +85,49 @@ void run_stack_allocator_tests() {
  * @details This test ensures that after all blocks are freed, they coalesce back into a single large block,
  * allowing a subsequent large allocation to succeed.
  */
+ /**
+  * @brief Tests a simple cycle of allocations and deallocations.
+  * @details This test ensures that after all blocks are freed, they coalesce back into a single large block,
+  * allowing a subsequent large allocation to succeed.
+  */
 void test_simple_cycle() {
     print_test_header("Test 1: Simple Allocate/Free Cycle & Coalescing");
-    GeneralPurposeAllocator alloc(1024);
+    GeneralPurposeAllocator<int> alloc(1024);
 
-    // Arrange
-    void* p1 = alloc.allocate(100);
-    void* p2 = alloc.allocate(200);
-    void* p3 = alloc.allocate(300);
+    // --- Arrange ---
+    // Allocate three blocks. Sizes are now smaller to fit in the 1024-byte arena.
+    int* p1 = alloc.allocate(20); // Allocate space for 20 ints (80 bytes)
+    assert(p1 != nullptr && "Allocation for p1 failed!");
 
-    // Act
+    int* p2 = alloc.allocate(30); // Allocate space for 30 ints (120 bytes)
+    assert(p2 != nullptr && "Allocation for p2 failed!");
+
+    int* p3 = alloc.allocate(50); // Allocate space for 50 ints (200 bytes)
+    assert(p3 != nullptr && "Allocation for p3 failed!");
+
+    // --- Act ---
+    // Deallocate all blocks. The allocator should coalesce them.
     alloc.deallocate(p1);
     alloc.deallocate(p2);
     alloc.deallocate(p3);
 
-    // Assert
-    // If coalescing worked, we should have a single large free block.
-    // A new allocation almost the size of the total arena should succeed.
-    void* p4 = alloc.allocate(1000);
-    assert(p4 != nullptr && "Coalescing failed, not enough contiguous space.");
+    // --- Assert ---
+    // If coalescing worked correctly, the free list should now contain a single
+    // large block of 1024 bytes. A new allocation should succeed.
+    int* p4 = alloc.allocate(100); // Request space for another 100 ints (400 bytes)
+    assert(p4 != nullptr && "Final large allocation failed! Coalescing may be broken.");
 
-    std::cout << "PASS" << std::endl;
+    std::cout << "  PASS" << std::endl;
 }
-
 /**
  * @brief Tests if the allocator reuses a freed memory block for a new allocation of the same size.
  */
 void test_reuse() {
     print_test_header("Test 2: Block Reuse");
-    GeneralPurposeAllocator alloc(1024);
+    GeneralPurposeAllocator<int> alloc(1024);
 
     // Arrange
-    void* p1 = alloc.allocate(128);
+    int* p1 = alloc.allocate(128);
     alloc.allocate(128); // Allocate another block to prevent merging with the end of the arena
 
     // Act
@@ -134,11 +145,11 @@ void test_reuse() {
  */
 void test_coalesce_right() {
     print_test_header("Test 3: Coalesce with Right Neighbor");
-    GeneralPurposeAllocator alloc(1024);
+    GeneralPurposeAllocator<int> alloc(1024);
 
     // Arrange
-    void* p1 = alloc.allocate(100);
-    void* p2 = alloc.allocate(100);
+    int* p1 = alloc.allocate(100);
+    int* p2 = alloc.allocate(100);
     alloc.allocate(100); // Sentinel block
 
     // Act
@@ -158,11 +169,11 @@ void test_coalesce_right() {
  */
 void test_coalesce_left() {
     print_test_header("Test 4: Coalesce with Left Neighbor");
-    GeneralPurposeAllocator alloc(1024);
+    GeneralPurposeAllocator<int> alloc(1024);
 
     // Arrange
-    void* p1 = alloc.allocate(100);
-    void* p2 = alloc.allocate(100);
+    int* p1 = alloc.allocate(100);
+    int* p2 = alloc.allocate(100);
     alloc.allocate(100); // Sentinel block
 
     // Act
@@ -182,25 +193,31 @@ void test_coalesce_left() {
  */
 void test_sandwich_coalesce() {
     print_test_header("Test 5: Sandwich Coalesce (Both Sides)");
-    GeneralPurposeAllocator alloc(1024);
+    GeneralPurposeAllocator<int> alloc(1024);
 
-    // Arrange
-    alloc.allocate(100); // p1, will remain allocated
-    void* p2 = alloc.allocate(100);
-    void* p3 = alloc.allocate(100);
-    void* p4 = alloc.allocate(100);
+    // --- Arrange ---
+    // Allocate 4 blocks. We use a smaller size (20 ints) so they all fit.
+    int* p1 = alloc.allocate(20); // p1, will remain allocated
+    int* p2 = alloc.allocate(20);
+    int* p3 = alloc.allocate(20);
+    int* p4 = alloc.allocate(20);
 
-    // Act
+    assert(p1 && p2 && p3 && p4 && "Initial allocations failed!");
+
+    // --- Act ---
+    // Deallocate the blocks around p3.
     alloc.deallocate(p2);
     alloc.deallocate(p4);
-    alloc.deallocate(p3); // Freeing p3 should cause it to merge with p2 and p4.
 
-    // Assert
-    // A new block of 300 should now fit into the merged space.
-    void* p5 = alloc.allocate(300);
+    // Now, deallocating p3 should cause it to merge with the free blocks of p2 and p4.
+    alloc.deallocate(p3);
+
+    // --- Assert ---
+    // The merged space should be large enough to hold 3 * 20 = 60 ints.
+    int* p5 = alloc.allocate(60);
     assert(p5 != nullptr && "Sandwich coalescing failed.");
 
-    std::cout << "PASS" << std::endl;
+    std::cout << "  PASS" << std::endl;
 }
 
 /**
@@ -208,12 +225,12 @@ void test_sandwich_coalesce() {
  */
 void test_large_block_allocation() {
     print_test_header("Test 6: Large Block Allocation (>128KB)");
-    GeneralPurposeAllocator alloc(1024); // Main arena size is small
+    GeneralPurposeAllocator<int> alloc(1024); // Main arena size is small
 
     // Arrange & Act
     // This allocation should bypass the main arena and use VirtualAlloc/mmap directly.
     const size_t large_size = 256 * 1024;
-    void* p_large = alloc.allocate(large_size);
+    int* p_large = alloc.allocate(large_size);
 
     // Assert
     assert(p_large != nullptr && "Large block allocation failed.");

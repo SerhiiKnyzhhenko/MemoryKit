@@ -10,7 +10,7 @@
 
 int main() {
    
-    run_pool_allocator_tests();
+    run_general_purpose_allocator_tests();
 
     
 

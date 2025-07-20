@@ -26,13 +26,21 @@
     <ClInclude Include="tests.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="GeneralPurposeAllocator.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="StackAllocator.cpp" />
     <ClCompile Include="tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PoolAllocator.tpp">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="StackAllocator.tpp">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GeneralPurposeAllocator.tpp">
       <FileType>CppHeader</FileType>
     </ClInclude>
   </ItemGroup>
