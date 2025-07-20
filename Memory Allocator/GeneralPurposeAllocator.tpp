@@ -35,7 +35,7 @@ GeneralPurposeAllocator<T>::~GeneralPurposeAllocator() {
 }
 
 template<typename T>
-T* GeneralPurposeAllocator<T>::allocate(T n) {
+T* GeneralPurposeAllocator<T>::allocate(size_t n) {
     size_t required_size = n * sizeof(T);
 
     if (required_size <= LARGE_ALLOC_THRESHOLD)
@@ -46,9 +46,11 @@ T* GeneralPurposeAllocator<T>::allocate(T n) {
 
 template<typename T>
 void GeneralPurposeAllocator<T>::deallocate(T* user_data_ptr) {
-    if (user_data_ptr == nullptr)
-        return;
+    deallocate(user_data_ptr, 1);
+}
 
+template<typename T>
+void GeneralPurposeAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
     Block* current_block = reinterpret_cast<Block*>((char*)user_data_ptr - offsetof(Block, user_data));
 
     if (current_block->is_mmapped_) {

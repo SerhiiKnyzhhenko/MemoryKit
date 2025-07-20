@@ -40,8 +40,9 @@ public:
     GeneralPurposeAllocator(size_t size);
     ~GeneralPurposeAllocator();
 
-    T* allocate(T n);
+    T* allocate(size_t n);
     void deallocate(T* user_data_ptr);
+    void deallocate(T* user_data_ptr, size_t n);
 
 private:
     T* allocate_from_free_list(size_t requested_size);

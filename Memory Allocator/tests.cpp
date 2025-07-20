@@ -174,7 +174,7 @@ void test_coalesce_left() {
     // Arrange
     int* p1 = alloc.allocate(100);
     int* p2 = alloc.allocate(100);
-    alloc.allocate(100); // Sentinel block
+    alloc.allocate(40); // Sentinel block
 
     // Act
     alloc.deallocate(p2);
@@ -210,7 +210,7 @@ void test_sandwich_coalesce() {
     alloc.deallocate(p4);
 
     // Now, deallocating p3 should cause it to merge with the free blocks of p2 and p4.
-    alloc.deallocate(p3);
+    alloc.deallocate(p3, 20);
 
     // --- Assert ---
     // The merged space should be large enough to hold 3 * 20 = 60 ints.
