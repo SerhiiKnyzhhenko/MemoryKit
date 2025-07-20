@@ -248,15 +248,15 @@ void run_general_purpose_allocator_tests() {
  */
 void test_pool_out_of_memory() {
     print_test_header("Test 1: Out of Memory");
-    PoolAllocator alloc(64, 10);
+    PoolAllocator<int> alloc(10);
 
     // Arrange & Act: Exhaust the pool
     for (size_t i = 0; i < 10; i++) {
-        alloc.allocate(1);
+        alloc.allocate();
     }
 
     // Act: Request one more chunk
-    void* p = alloc.allocate(1);
+    void* p = alloc.allocate();
 
     // Assert: The pointer must be null
     assert(p == nullptr && "Allocator did not return nullptr when pool was empty!");
@@ -270,14 +270,14 @@ void test_pool_out_of_memory() {
  */
 void test_allocate_deallocate_reuse() {
     print_test_header("Test 2: Reuse Freed Chunk");
-    PoolAllocator alloc(64, 10);
+    PoolAllocator<int> alloc(10);
 
     // Arrange
-    void* p1 = alloc.allocate(1);
+    int* p1 = alloc.allocate();
 
     // Act
     alloc.deallocate(p1);
-    void* p2 = alloc.allocate(1);
+    int* p2 = alloc.allocate();
 
     // Assert: The same memory address should be returned
     assert(p1 == p2 && "Allocator did not reuse the chunk!");
@@ -290,24 +290,24 @@ void test_allocate_deallocate_reuse() {
  * re-allocates them all again to ensure the allocator state is not corrupted.
  */
 void test_full_cycle() {
-    print_test_header("Test 3: Full Lifecycle");
-    PoolAllocator alloc(64, 10);
-    std::vector<void*> allocated_pointers;
+    print_test_header("Test 3: Test full cycle");
+    PoolAllocator<int>alloc(10);
+    std::vector<int*> allocated_pointers;
     allocated_pointers.reserve(10);
 
     // Arrange: Allocate all chunks
     for (size_t i = 0; i < 10; i++) {
-        allocated_pointers.push_back(alloc.allocate(1));
+        allocated_pointers.push_back(alloc.allocate());
     }
 
     // Act: Deallocate all chunks
-    for (void* p : allocated_pointers) {
+    for (int* p : allocated_pointers) {
         alloc.deallocate(p);
     }
 
     // Assert: All 10 chunks should be available for allocation again
     for (size_t i = 0; i < 10; i++) {
-        void* p = alloc.allocate(1);
+        void* p = alloc.allocate();
         assert(p != nullptr && "A chunk was lost after a full deallocation cycle!");
     }
 
@@ -321,10 +321,10 @@ void test_full_cycle() {
  */
 void test_double_free() {
     print_test_header("Test 4: Double Free");
-    PoolAllocator alloc(64, 10);
+    PoolAllocator<int>alloc(10);
 
     // Arrange
-    void* p1 = alloc.allocate(1);
+    int* p1 = alloc.allocate();
 
     // Act
     alloc.deallocate(p1);
@@ -333,7 +333,7 @@ void test_double_free() {
     // Assert: We should still be able to allocate all 10 chunks.
     // If the double free corrupted the list (e.g., created a cycle), this loop would fail.
     for (size_t i = 0; i < 10; i++) {
-        void* p = alloc.allocate(1);
+        void* p = alloc.allocate();
         assert(p != nullptr && "Double free corrupted the free list!");
     }
 
