@@ -3,19 +3,26 @@ template<typename T>
 GeneralPurposeAllocator<T>::GeneralPurposeAllocator(size_t size) {
     m_total_size_ = (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 
+
 #ifdef _WIN32
-    m_start_ = VirtualAlloc(NULL, m_total_size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (m_start_ == NULL) {
+    m_start_ = std::shared_ptr<void>(
+        VirtualAlloc(NULL, m_total_size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE),
+        [](void* ptr) { VirtualFree(ptr, 0, MEM_RELEASE); } 
+    );
+    if (m_start_.get() == NULL) {
         throw std::bad_alloc();
     }
 #else
-    m_start = mmap(nullptr, m_total_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-    if (m_start_ == MAP_FAILED) {
+    m_start_ = std::shared_ptr<void>(
+        mmap(nullptr, m_total_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0),
+        [this](void* ptr) { munmap(ptr, m_total_size_); }
+    );
+    if (m_start_.get() == MAP_FAILED) {
         throw std::bad_alloc();
     }
 #endif
 
-    Block* initial_block = static_cast<Block*>(m_start_);
+    Block* initial_block = static_cast<Block*>(m_start_.get());
     initial_block->size_ = m_total_size_;
     initial_block->is_free_ = true;
     initial_block->is_mmapped_ = false;
@@ -26,11 +33,26 @@ GeneralPurposeAllocator<T>::GeneralPurposeAllocator(size_t size) {
 }
 
 template<typename T>
+GeneralPurposeAllocator<T>::GeneralPurposeAllocator()
+    : GeneralPurposeAllocator(1024 * 1024) {
+
+}
+
+template<typename T>
+template<typename U>
+GeneralPurposeAllocator<T>::GeneralPurposeAllocator(const GeneralPurposeAllocator<U>& other) noexcept
+    : m_start_(other.get_m_start()),
+    m_total_size_(other.get_m_total_size()),
+    m_free_list_head_(other.get_m_free_list_head()) {
+
+}
+
+template<typename T>
 GeneralPurposeAllocator<T>::~GeneralPurposeAllocator() {
 #ifdef _WIN32
-    VirtualFree(m_start_, 0, MEM_RELEASE);
+    VirtualFree(m_start_.get(), 0, MEM_RELEASE);
 #else
-    munmap(m_start_, m_total_size_);
+    munmap(m_start_.get(), m_total_size_);
 #endif
 }
 
@@ -193,7 +215,7 @@ void GeneralPurposeAllocator<T>::unlink_from_freelist(Block* block_to_remove) {
 
 template<typename T>
 Block* GeneralPurposeAllocator<T>::coalesce(Block* current_block, bool* merging_with_the_left_block) {
-    if (reinterpret_cast<uintptr_t>(current_block) > reinterpret_cast<uintptr_t>(m_start_)) {
+    if (reinterpret_cast<uintptr_t>(current_block) > reinterpret_cast<uintptr_t>(m_start_.get())) {
         current_block = merge_with_left_block(current_block, merging_with_the_left_block);
     }
 
@@ -212,7 +234,7 @@ Block* GeneralPurposeAllocator<T>::merge_with_left_block(Block* current_block, b
         reinterpret_cast<uintptr_t>(current_block) - *left_block_foooter
         );
 
-    if (reinterpret_cast<uintptr_t>(left_block) >= reinterpret_cast<uintptr_t>(m_start_)
+    if (reinterpret_cast<uintptr_t>(left_block) >= reinterpret_cast<uintptr_t>(m_start_.get())
         && left_block->is_free_ == true) {
 
         left_block->size_ += current_block->size_;
@@ -233,7 +255,7 @@ void GeneralPurposeAllocator<T>::merge_with_right_block(Block* current_block) {
         reinterpret_cast<uintptr_t>(current_block) + current_block->size_
         );
 
-    if (reinterpret_cast<uintptr_t>(right_block) < reinterpret_cast<uintptr_t>(m_start_) + m_total_size_
+    if (reinterpret_cast<uintptr_t>(right_block) < reinterpret_cast<uintptr_t>(m_start_.get()) + m_total_size_
         && right_block->is_free_ == true) {
 
         unlink_from_freelist(right_block);
@@ -261,4 +283,19 @@ void GeneralPurposeAllocator<T>::update_footer(Block* block) const {
         reinterpret_cast<uintptr_t>(block) + block->size_ - sizeof(size_t)
         );
     *current_block_footer = block->size_;
+}
+
+template<typename T>
+Block* GeneralPurposeAllocator<T>::get_m_free_list_head() const {
+    return m_free_list_head_;
+}
+
+template<typename T>
+std::shared_ptr<void> GeneralPurposeAllocator<T>::get_m_start() const {
+    return m_start_;
+}
+
+template<typename T>
+size_t GeneralPurposeAllocator<T>::get_m_total_size() const {
+    return m_total_size_;
 }
