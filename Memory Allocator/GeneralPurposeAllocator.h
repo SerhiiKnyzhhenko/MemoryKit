@@ -18,8 +18,8 @@ template<typename T>
 class GeneralPurposeAllocator {
 
 private:
-    Block* m_free_list_head_ = nullptr;
-    std::shared_ptr<void> m_start_ = nullptr;
+    std::shared_ptr<Block*> m_free_list_head_ptr_;
+    std::shared_ptr<void> m_start_;
     size_t m_total_size_ = 0;
     static constexpr size_t LARGE_ALLOC_THRESHOLD = 128 * 1024;
     static constexpr size_t ALIGNMENT = 16;
@@ -27,7 +27,7 @@ private:
 public:
     GeneralPurposeAllocator(size_t size);
     GeneralPurposeAllocator();
-    ~GeneralPurposeAllocator();
+    GeneralPurposeAllocator(const GeneralPurposeAllocator& other) = default;
 
     // Шаблонный конструктор копирования
     template<typename U>
@@ -38,15 +38,24 @@ public:
     friend class GeneralPurposeAllocator;
 
     GeneralPurposeAllocator& operator=(const GeneralPurposeAllocator&) = delete;
-
     GeneralPurposeAllocator(GeneralPurposeAllocator&&) = delete;
     GeneralPurposeAllocator& operator=(GeneralPurposeAllocator&&) = delete;
+
+    template<typename U>
+    bool operator==(const GeneralPurposeAllocator<U>& other) const noexcept {
+        return m_start_.get() == other.m_start_.get();
+    }
+
+    template<typename U>
+    bool operator!=(const GeneralPurposeAllocator<U>& other) const noexcept {
+        return m_start_.get() != other.m_start_.get();
+    }
 
     T* allocate(size_t n);
     void deallocate(T* user_data_ptr);
     void deallocate(T* user_data_ptr, size_t n);
 
-    Block* get_m_free_list_head() const;
+    std::shared_ptr<Block*> get_m_free_list_head_ptr_() const;
     std::shared_ptr<void> get_m_start() const;
     size_t get_m_total_size() const;
 

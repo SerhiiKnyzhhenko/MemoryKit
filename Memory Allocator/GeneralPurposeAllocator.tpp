@@ -29,7 +29,7 @@ GeneralPurposeAllocator<T>::GeneralPurposeAllocator(size_t size) {
     initial_block->free_block_pointers.next_free = nullptr;
     initial_block->free_block_pointers.prev_free = nullptr;
 
-    m_free_list_head_ = initial_block;
+    m_free_list_head_ptr_ = std::make_shared<Block*>(initial_block);
 }
 
 template<typename T>
@@ -43,17 +43,8 @@ template<typename U>
 GeneralPurposeAllocator<T>::GeneralPurposeAllocator(const GeneralPurposeAllocator<U>& other) noexcept
     : m_start_(other.get_m_start()),
     m_total_size_(other.get_m_total_size()),
-    m_free_list_head_(other.get_m_free_list_head()) {
+    m_free_list_head_ptr_(other.get_m_free_list_head_ptr_()) {
 
-}
-
-template<typename T>
-GeneralPurposeAllocator<T>::~GeneralPurposeAllocator() {
-#ifdef _WIN32
-    VirtualFree(m_start_.get(), 0, MEM_RELEASE);
-#else
-    munmap(m_start_.get(), m_total_size_);
-#endif
 }
 
 template<typename T>
@@ -147,7 +138,7 @@ T* GeneralPurposeAllocator<T>::allocate_large_block(size_t required_size) {
 
 template<typename T>
 Block* GeneralPurposeAllocator<T>::find_first_fit(size_t total_neded_size) const {
-    Block* current_block = m_free_list_head_;
+    Block* current_block = *m_free_list_head_ptr_;
     while (current_block != nullptr) {
         if (current_block->size_ >= total_neded_size) {
             break;
@@ -186,7 +177,7 @@ void GeneralPurposeAllocator<T>::update_freelist_after_allocation(Block* old_blo
         prev_block->free_block_pointers.next_free = new_block;
     }
     else {
-        m_free_list_head_ = new_block;
+        *m_free_list_head_ptr_ = new_block;
     }
 
     if (next_block != nullptr)
@@ -206,7 +197,7 @@ void GeneralPurposeAllocator<T>::unlink_from_freelist(Block* block_to_remove) {
         prev_block->free_block_pointers.next_free = next_block;
     }
     else {
-        m_free_list_head_ = next_block;
+        *m_free_list_head_ptr_ = next_block;
     }
 
     if (next_block != nullptr)
@@ -268,13 +259,13 @@ void GeneralPurposeAllocator<T>::merge_with_right_block(Block* current_block) {
 
 template<typename T>
 void GeneralPurposeAllocator<T>::add_to_freelist(Block* block) {
-    block->free_block_pointers.next_free = m_free_list_head_;
+    block->free_block_pointers.next_free = *m_free_list_head_ptr_;
     block->free_block_pointers.prev_free = nullptr;
 
-    if (m_free_list_head_ != nullptr)
-        m_free_list_head_->free_block_pointers.prev_free = block;
+    if (*m_free_list_head_ptr_ != nullptr)
+        (*m_free_list_head_ptr_)->free_block_pointers.prev_free = block;
 
-    m_free_list_head_ = block;
+    *m_free_list_head_ptr_ = block;
 }
 
 template<typename T>
@@ -286,8 +277,8 @@ void GeneralPurposeAllocator<T>::update_footer(Block* block) const {
 }
 
 template<typename T>
-Block* GeneralPurposeAllocator<T>::get_m_free_list_head() const {
-    return m_free_list_head_;
+std::shared_ptr<Block*> GeneralPurposeAllocator<T>::get_m_free_list_head_ptr_() const {
+    return m_free_list_head_ptr_;
 }
 
 template<typename T>

@@ -125,6 +125,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="benchmarks.h" />
     <ClInclude Include="Block.h" />
     <ClInclude Include="GeneralPurposeAllocator.h" />
     <ClInclude Include="IAllocator.h" />
@@ -148,6 +149,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="benchmarks.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="tests.cpp" />
   </ItemGroup>

@@ -4,15 +4,15 @@
 #include <numeric>
 #include <cassert>
 #include "tests.h"
+#include "benchmarks.h"
+
 
 
 
 
 int main() {
-   
-    run_segregated_list_allocator_tests();
-
     
+    run_general_purpose_allocator_benchmarks();
 
     return 0;
 }
