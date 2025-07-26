@@ -365,3 +365,118 @@ void run_pool_allocator_tests() {
     test_full_cycle();
     test_double_free();
 }
+
+
+//-------------------------- TESTS FOR SegregatedListAllocator --------------------------//
+
+/**
+ * @brief Tests that a freed block is placed into the correct size-class list.
+ * @details We allocate two blocks of different sizes, free both, then re-allocate
+ * a block of the first size. It should reuse the first block's memory, proving
+ * it was correctly binned.
+ */
+void test_correct_binning() {
+    print_test_header("Test 1: Correct Binning on Deallocation");
+    SegregatedListAllocator<char> alloc(1024);
+
+    // Arrange
+    char* p1_32_bytes = alloc.allocate(32);
+    char* p2_64_bytes = alloc.allocate(64);
+
+    // Act
+    alloc.deallocate(p1_32_bytes, 32); // Free the 32-byte block
+    alloc.deallocate(p2_64_bytes, 64); // Free the 64-byte block
+
+    // Assert
+    // Request a 32-byte block again. It must reuse the memory from p1.
+    char* p3_32_bytes = alloc.allocate(32);
+    assert(p1_32_bytes == p3_32_bytes && "Block was not placed in/retrieved from the correct bin!");
+
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief Tests that the allocator searches larger bins if the ideal one is empty.
+ * @details We allocate one large block, free it, and then request a smaller block.
+ * The allocator should find the larger free block and split it.
+ */
+void test_search_across_bins() {
+    print_test_header("Test 2: Search Across Larger Bins");
+    SegregatedListAllocator<char> alloc(1024);
+
+    // Arrange: Create and free a 100-byte block. It will go into the 128-byte bin.
+    char* p1_100_bytes = alloc.allocate(100);
+    alloc.deallocate(p1_100_bytes, 100);
+
+    // Act: Request a smaller block (e.g., 20 bytes), for which the ideal bin is empty.
+    char* p2_20_bytes = alloc.allocate(20);
+
+    // Assert
+    // The allocation must succeed by finding and splitting the 100-byte block.
+    // The returned address should be the same as the start of the larger block.
+    assert(p2_20_bytes == p1_100_bytes && "Allocator failed to find and split a block from a larger bin!");
+
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief [NEW TEST] Tests that the remainder of a split block is placed in the correct smaller bin.
+ * @details We allocate and free a large block, then allocate a small part of it.
+ * The remainder should be re-binned correctly and be available for a subsequent allocation.
+ */
+void test_split_and_remainder_binning() {
+    print_test_header("Test 3: Splitting and Remainder Re-binning");
+    SegregatedListAllocator<char> alloc(1024);
+
+    // Arrange: Create a 200-byte free block (goes into the 256-byte bin).
+    char* p1_200_bytes = alloc.allocate(200);
+    alloc.deallocate(p1_200_bytes, 200);
+
+    // Act: Allocate a small chunk from it (e.g., 30 bytes).
+    // The remainder of ~170 bytes should be created and placed in the 256-byte bin.
+    alloc.allocate(30);
+
+    // Assert: We should be able to allocate another block that fits in the remainder.
+    // For example, 150 bytes.
+    void* p2_150_bytes = alloc.allocate(150);
+    assert(p2_150_bytes != nullptr && "Remainder of split block was not correctly re-binned!");
+
+    std::cout << "  PASS" << std::endl;
+}
+
+/**
+ * @brief [NEW TEST] Tests that coalescing promotes the merged block to a larger bin.
+ * @details We free two small adjacent blocks. They should merge into a larger block,
+ * which should be placed in a higher-order bin, making it available for a larger allocation.
+ */
+void test_coalesce_and_rebinning() {
+    print_test_header("Test 4: Coalescing and Promotion to Larger Bin");
+    SegregatedListAllocator<char> alloc(1024);
+
+    // Arrange: Allocate two adjacent 60-byte blocks (they go in the 64-byte bin).
+    char* p1 = alloc.allocate(60);
+    char* p2 = alloc.allocate(60);
+    alloc.allocate(10); // Sentinel
+
+    // Act: Free both. They should coalesce into a block of at least 120 bytes (plus overhead).
+    alloc.deallocate(p1, 60);
+    alloc.deallocate(p2, 60);
+
+    // Assert: The merged block should have been "promoted" to the 128-byte (or larger) bin.
+    // We should now be able to satisfy a larger allocation that was previously impossible.
+    void* p3_120_bytes = alloc.allocate(120);
+    assert(p3_120_bytes != nullptr && "Coalesced block was not promoted to a larger bin!");
+
+    std::cout << "  PASS" << std::endl;
+}
+
+// --- Main test runner function ---
+void run_segregated_list_allocator_tests() {
+    std::cout << "\n--- Testing SegregatedListAllocator ---";
+    test_correct_binning();
+    test_search_across_bins();
+    test_split_and_remainder_binning(); // New test
+    test_coalesce_and_rebinning();      // New test
+    // You should also adapt and run the tests from GeneralPurposeAllocator
+    // like test_large_block_allocation() to ensure that logic still works.
+}

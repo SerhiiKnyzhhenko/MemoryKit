@@ -4,16 +4,19 @@
 #include <iostream>
 #include <assert.h>
 #include <vector>
+#include <cassert>
 
 #include "GeneralPurposeAllocator.h"
 #include "PoolAllocator.h"
 #include "StackAllocator.h"
+#include "SegregatedListAllocator.h"
 
 void print_test_header(const std::string& test_name);
 
 void run_general_purpose_allocator_tests();
 void run_pool_allocator_tests();
 void run_stack_allocator_tests();
+void run_segregated_list_allocator_tests();
 
 #endif // !TESTS_H
 

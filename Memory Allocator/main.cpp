@@ -10,7 +10,7 @@
 
 int main() {
    
-    run_general_purpose_allocator_tests();
+    run_segregated_list_allocator_tests();
 
     
 

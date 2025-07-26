@@ -1,6 +1,6 @@
 
 template<typename T>
-GeneralPurposeAllocator<T>::GeneralPurposeAllocator(size_t size) {
+SegregatedListAllocator<T>::SegregatedListAllocator(size_t size) {
     m_total_size_ = (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 
 #ifdef _WIN32
@@ -22,11 +22,15 @@ GeneralPurposeAllocator<T>::GeneralPurposeAllocator(size_t size) {
     initial_block->free_block_pointers.next_free = nullptr;
     initial_block->free_block_pointers.prev_free = nullptr;
 
-    m_free_list_head_ = initial_block;
+    m_free_lists_.resize(14, nullptr);
+
+    size_t index = find_list_index(m_total_size_);
+    m_free_lists_[index] = initial_block;
+
 }
 
 template<typename T>
-GeneralPurposeAllocator<T>::~GeneralPurposeAllocator() {
+SegregatedListAllocator<T>::~SegregatedListAllocator() {
 #ifdef _WIN32
     VirtualFree(m_start_, 0, MEM_RELEASE);
 #else
@@ -35,7 +39,7 @@ GeneralPurposeAllocator<T>::~GeneralPurposeAllocator() {
 }
 
 template<typename T>
-T* GeneralPurposeAllocator<T>::allocate(size_t n) {
+T* SegregatedListAllocator<T>::allocate(size_t n) {
     size_t required_size = n * sizeof(T);
 
     if (required_size <= LARGE_ALLOC_THRESHOLD)
@@ -45,12 +49,12 @@ T* GeneralPurposeAllocator<T>::allocate(size_t n) {
 }
 
 template<typename T>
-void GeneralPurposeAllocator<T>::deallocate(T* user_data_ptr) {
+void SegregatedListAllocator<T>::deallocate(T* user_data_ptr) {
     deallocate(user_data_ptr, 1);
 }
 
 template<typename T>
-void GeneralPurposeAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
+void SegregatedListAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
     Block* current_block = reinterpret_cast<Block*>((char*)user_data_ptr - offsetof(Block, user_data));
 
     if (current_block->is_mmapped_) {
@@ -67,37 +71,46 @@ void GeneralPurposeAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
 
     current_block->is_free_ = true;
 
-    bool merging_with_the_left_block = false;
-
-    current_block = coalesce(current_block, &merging_with_the_left_block);
-
-    if (!merging_with_the_left_block) {
-        add_to_freelist(current_block);
-    }
+    current_block = coalesce(current_block);
+    size_t index = find_list_index(current_block->size_);
+    add_to_freelist(current_block, index);
 }
 
 template<typename T>
-T* GeneralPurposeAllocator<T>::allocate_from_free_list(size_t required_size) {
-    Block* current_block = find_first_fit(required_size);
-    if (current_block == nullptr)
+T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
+    size_t index = find_list_index(required_size);
+
+    size_t found_index = 0;
+    Block* found_block = nullptr;
+
+    for (size_t i = index; i < m_free_lists_.size(); i++) {
+        if (m_free_lists_[i] != nullptr) {
+            found_block = m_free_lists_[i];
+            found_index = i;
+            break;
+        }        
+    }
+    if (found_block == nullptr)
         return nullptr;
 
-    if (current_block->size_ > required_size + sizeof(Block)) {
+    unlink_from_freelist(found_block, found_index);
 
-        Block* new_block = split_block(current_block, required_size);
+    if ((found_block->size_ - required_size) > sizeof(Block)) {
 
-        update_freelist_after_allocation(current_block, new_block);
-
-        return (T*)current_block->user_data;
+        Block* remainder_block = split_block(found_block, required_size);
+        size_t remainder_index = find_list_index(remainder_block->size_);
+        add_to_freelist(remainder_block, remainder_index);
+  
+        return (T*)found_block->user_data;
     }
     else {
-        unlink_from_freelist(current_block);
-        current_block->is_free_ = false;
-        return (T*)current_block->user_data;
+        found_block->is_free_ = false;
+        return (T*)found_block->user_data;
     }
 }
+
 template<typename T>
-T* GeneralPurposeAllocator<T>::allocate_large_block(size_t required_size) {
+T* SegregatedListAllocator<T>::allocate_large_block(size_t required_size) {
     size_t aligment_size = (required_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
     size_t total_size = aligment_size + sizeof(Block);
 
@@ -124,19 +137,7 @@ T* GeneralPurposeAllocator<T>::allocate_large_block(size_t required_size) {
 }
 
 template<typename T>
-Block* GeneralPurposeAllocator<T>::find_first_fit(size_t total_neded_size) const {
-    Block* current_block = m_free_list_head_;
-    while (current_block != nullptr) {
-        if (current_block->size_ >= total_neded_size) {
-            break;
-        }
-        current_block = current_block->free_block_pointers.next_free;
-    }
-    return current_block;
-}
-
-template<typename T>
-Block* GeneralPurposeAllocator<T>::split_block(Block* block_to_split, size_t required_size) {
+Block* SegregatedListAllocator<T>::split_block(Block* block_to_split, size_t required_size) {
     size_t allocated_size = required_size + sizeof(Block);
     size_t new_block_size = block_to_split->size_ - allocated_size;
 
@@ -156,45 +157,20 @@ Block* GeneralPurposeAllocator<T>::split_block(Block* block_to_split, size_t req
 }
 
 template<typename T>
-void GeneralPurposeAllocator<T>::update_freelist_after_allocation(Block* old_block, Block* new_block) {
-    Block* next_block = old_block->free_block_pointers.next_free;
-    Block* prev_block = old_block->free_block_pointers.prev_free;
-
-    if (prev_block != nullptr) {
-        prev_block->free_block_pointers.next_free = new_block;
-    }
-    else {
-        m_free_list_head_ = new_block;
-    }
-
-    if (next_block != nullptr)
-        next_block->free_block_pointers.prev_free = new_block;
-
-
-    new_block->free_block_pointers.prev_free = prev_block;
-    new_block->free_block_pointers.next_free = next_block;
-}
-
-template<typename T>
-void GeneralPurposeAllocator<T>::unlink_from_freelist(Block* block_to_remove) {
+void SegregatedListAllocator<T>::unlink_from_freelist(Block* block_to_remove, size_t index) {
     Block* next_block = block_to_remove->free_block_pointers.next_free;
-    Block* prev_block = block_to_remove->free_block_pointers.prev_free;
 
-    if (prev_block != nullptr) {
-        prev_block->free_block_pointers.next_free = next_block;
-    }
-    else {
-        m_free_list_head_ = next_block;
-    }
+    m_free_lists_[index] = next_block;
 
-    if (next_block != nullptr)
-        next_block->free_block_pointers.prev_free = prev_block;
+    if (next_block != nullptr) {
+        next_block->free_block_pointers.prev_free = nullptr;
+    }
 }
 
 template<typename T>
-Block* GeneralPurposeAllocator<T>::coalesce(Block* current_block, bool* merging_with_the_left_block) {
+Block* SegregatedListAllocator<T>::coalesce(Block* current_block) {
     if (reinterpret_cast<uintptr_t>(current_block) > reinterpret_cast<uintptr_t>(m_start_)) {
-        current_block = merge_with_left_block(current_block, merging_with_the_left_block);
+        current_block = merge_with_left_block(current_block);
     }
 
     merge_with_right_block(current_block);
@@ -203,7 +179,7 @@ Block* GeneralPurposeAllocator<T>::coalesce(Block* current_block, bool* merging_
 }
 
 template<typename T>
-Block* GeneralPurposeAllocator<T>::merge_with_left_block(Block* current_block, bool* merging_with_the_left_block) {
+Block* SegregatedListAllocator<T>::merge_with_left_block(Block* current_block) {
     size_t* left_block_foooter = reinterpret_cast<size_t*>(
         reinterpret_cast<uintptr_t>(current_block) - sizeof(size_t)
         );
@@ -215,20 +191,21 @@ Block* GeneralPurposeAllocator<T>::merge_with_left_block(Block* current_block, b
     if (reinterpret_cast<uintptr_t>(left_block) >= reinterpret_cast<uintptr_t>(m_start_)
         && left_block->is_free_ == true) {
 
+        size_t left_block_index = find_list_index(left_block->size_);
+        unlink_from_freelist(left_block, left_block_index);
+
         left_block->size_ += current_block->size_;
 
         update_footer(left_block);
 
         current_block = left_block;
-
-        *merging_with_the_left_block = true;
     }
 
     return current_block;
 }
 
 template<typename T>
-void GeneralPurposeAllocator<T>::merge_with_right_block(Block* current_block) {
+void SegregatedListAllocator<T>::merge_with_right_block(Block* current_block) {
     Block* right_block = reinterpret_cast<Block*>(
         reinterpret_cast<uintptr_t>(current_block) + current_block->size_
         );
@@ -236,7 +213,8 @@ void GeneralPurposeAllocator<T>::merge_with_right_block(Block* current_block) {
     if (reinterpret_cast<uintptr_t>(right_block) < reinterpret_cast<uintptr_t>(m_start_) + m_total_size_
         && right_block->is_free_ == true) {
 
-        unlink_from_freelist(right_block);
+        size_t right_block_index = find_list_index(right_block->size_);
+        unlink_from_freelist(right_block, right_block_index);
 
         current_block->size_ += right_block->size_;
 
@@ -245,20 +223,29 @@ void GeneralPurposeAllocator<T>::merge_with_right_block(Block* current_block) {
 }
 
 template<typename T>
-void GeneralPurposeAllocator<T>::add_to_freelist(Block* block) {
-    block->free_block_pointers.next_free = m_free_list_head_;
+void SegregatedListAllocator<T>::add_to_freelist(Block* block, size_t index) {
+    block->free_block_pointers.next_free = m_free_lists_[index];
     block->free_block_pointers.prev_free = nullptr;
 
-    if (m_free_list_head_ != nullptr)
-        m_free_list_head_->free_block_pointers.prev_free = block;
+    if (m_free_lists_[index] != nullptr)
+        m_free_lists_[index]->free_block_pointers.prev_free = block;
 
-    m_free_list_head_ = block;
+    m_free_lists_[index] = block;
 }
 
 template<typename T>
-void GeneralPurposeAllocator<T>::update_footer(Block* block) const {
+void SegregatedListAllocator<T>::update_footer(Block* block) const {
     size_t* current_block_footer = reinterpret_cast<size_t*>(
         reinterpret_cast<uintptr_t>(block) + block->size_ - sizeof(size_t)
         );
     *current_block_footer = block->size_;
+}
+
+template<typename T>
+size_t SegregatedListAllocator<T>::find_list_index(const size_t size) const {
+    if (size <= 16)
+        return 0;
+    size_t index = static_cast<size_t>(std::log2(size - 1)) - 3;
+    const size_t max_index = 13;
+    return std::min(index, max_index);
 }

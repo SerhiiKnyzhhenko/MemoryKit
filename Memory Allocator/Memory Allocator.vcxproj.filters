@@ -18,7 +18,13 @@
     <ClInclude Include="GeneralPurposeAllocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="IAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="PoolAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SegregatedListAllocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="StackAllocator.h">
@@ -27,16 +33,19 @@
     <ClInclude Include="tests.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="IAllocator.h">
+    <ClInclude Include="GeneralPurposeAllocator.tpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="PoolAllocator.tpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SegregatedListAllocator.tpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="StackAllocator.tpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GeneralPurposeAllocator.tpp">
+    <ClInclude Include="Block.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

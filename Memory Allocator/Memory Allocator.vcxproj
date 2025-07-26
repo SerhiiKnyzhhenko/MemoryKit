@@ -18,36 +18,10 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="GeneralPurposeAllocator.h" />
-    <ClInclude Include="IAllocator.h" />
-    <ClInclude Include="PoolAllocator.h" />
-    <ClInclude Include="StackAllocator.h" />
-    <ClInclude Include="tests.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="tests.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="PoolAllocator.tpp">
-      <FileType>CppHeader</FileType>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="StackAllocator.tpp">
-      <FileType>CppHeader</FileType>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="GeneralPurposeAllocator.tpp">
-      <FileType>CppHeader</FileType>
-    </ClInclude>
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{1c4caf07-4761-485b-a6f2-7e12246daf84}</ProjectGuid>
+    <ProjectGuid>{61bf75b1-b071-48ba-ad3e-9ac78b0a3123}</ProjectGuid>
     <RootNamespace>MemoryAllocator</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
@@ -100,7 +74,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NOMINMAX</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
@@ -127,7 +101,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NOMINMAX</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
@@ -150,6 +124,33 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Block.h" />
+    <ClInclude Include="GeneralPurposeAllocator.h" />
+    <ClInclude Include="IAllocator.h" />
+    <ClInclude Include="PoolAllocator.h" />
+    <ClInclude Include="SegregatedListAllocator.h" />
+    <ClInclude Include="StackAllocator.h" />
+    <ClInclude Include="tests.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GeneralPurposeAllocator.tpp">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
+    <ClInclude Include="PoolAllocator.tpp">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
+    <ClInclude Include="SegregatedListAllocator.tpp">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
+    <ClInclude Include="StackAllocator.tpp">
+      <FileType>CppHeader</FileType>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="tests.cpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
