@@ -4,38 +4,50 @@ SegregatedListAllocator<T>::SegregatedListAllocator(size_t size) {
     m_total_size_ = (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 
 #ifdef _WIN32
-    m_start_ = VirtualAlloc(NULL, m_total_size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (m_start_ == NULL) {
+    m_start_ = std::shared_ptr<void>(
+        VirtualAlloc(NULL, m_total_size_, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE),
+        [](void* ptr) { VirtualFree(ptr, 0, MEM_RELEASE); }
+    );
+    if (m_start_.get() == NULL) {
         throw std::bad_alloc();
     }
 #else
-    m_start = mmap(nullptr, m_total_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-    if (m_start_ == MAP_FAILED) {
+    m_start_ = std::shared_ptr<void>(
+        mmap(nullptr, m_total_size_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0),
+        [this](void* ptr) { munmap(ptr, m_total_size_); }
+    );
+    if (m_start_.get() == MAP_FAILED) {
         throw std::bad_alloc();
     }
 #endif
 
-    Block* initial_block = static_cast<Block*>(m_start_);
+    Block* initial_block = static_cast<Block*>(m_start_.get());
     initial_block->size_ = m_total_size_;
     initial_block->is_free_ = true;
     initial_block->is_mmapped_ = false;
     initial_block->free_block_pointers.next_free = nullptr;
     initial_block->free_block_pointers.prev_free = nullptr;
 
-    m_free_lists_.resize(14, nullptr);
+    m_free_lists_ptr_ = std::make_shared<std::vector<Block*>>(NUM_FREE_LISTS, nullptr);
 
     size_t index = find_list_index(m_total_size_);
-    m_free_lists_[index] = initial_block;
+    (*m_free_lists_ptr_)[index] = initial_block;
 
 }
 
 template<typename T>
-SegregatedListAllocator<T>::~SegregatedListAllocator() {
-#ifdef _WIN32
-    VirtualFree(m_start_, 0, MEM_RELEASE);
-#else
-    munmap(m_start_, m_total_size_);
-#endif
+SegregatedListAllocator<T>::SegregatedListAllocator() 
+    : SegregatedListAllocator(1024 * 1024) {
+
+}
+
+template<typename T>
+template<typename U>
+SegregatedListAllocator<T>::SegregatedListAllocator(const SegregatedListAllocator<U>& other) noexcept
+    : m_start_(other.get_m_start()),
+    m_total_size_(other.get_m_total_size()),
+    m_free_lists_ptr_(other.get_m_free_lists_ptr()) {
+
 }
 
 template<typename T>
@@ -83,9 +95,9 @@ T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
     size_t found_index = 0;
     Block* found_block = nullptr;
 
-    for (size_t i = index; i < m_free_lists_.size(); i++) {
-        if (m_free_lists_[i] != nullptr) {
-            found_block = m_free_lists_[i];
+    for (size_t i = index; i < (*m_free_lists_ptr_).size(); i++) {
+        if ((*m_free_lists_ptr_)[i] != nullptr) {
+            found_block = (*m_free_lists_ptr_)[i];
             found_index = i;
             break;
         }        
@@ -138,7 +150,9 @@ T* SegregatedListAllocator<T>::allocate_large_block(size_t required_size) {
 
 template<typename T>
 Block* SegregatedListAllocator<T>::split_block(Block* block_to_split, size_t required_size) {
-    size_t allocated_size = required_size + sizeof(Block);
+    size_t aligned_req_size = (required_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
+    size_t allocated_size = aligned_req_size + sizeof(Block);
+
     size_t new_block_size = block_to_split->size_ - allocated_size;
 
     Block* new_block = reinterpret_cast<Block*>(reinterpret_cast<uintptr_t>(block_to_split) + allocated_size);
@@ -160,7 +174,7 @@ template<typename T>
 void SegregatedListAllocator<T>::unlink_from_freelist(Block* block_to_remove, size_t index) {
     Block* next_block = block_to_remove->free_block_pointers.next_free;
 
-    m_free_lists_[index] = next_block;
+    (*m_free_lists_ptr_)[index] = next_block;
 
     if (next_block != nullptr) {
         next_block->free_block_pointers.prev_free = nullptr;
@@ -169,7 +183,7 @@ void SegregatedListAllocator<T>::unlink_from_freelist(Block* block_to_remove, si
 
 template<typename T>
 Block* SegregatedListAllocator<T>::coalesce(Block* current_block) {
-    if (reinterpret_cast<uintptr_t>(current_block) > reinterpret_cast<uintptr_t>(m_start_)) {
+    if (reinterpret_cast<uintptr_t>(current_block) > reinterpret_cast<uintptr_t>(m_start_.get())) {
         current_block = merge_with_left_block(current_block);
     }
 
@@ -188,7 +202,7 @@ Block* SegregatedListAllocator<T>::merge_with_left_block(Block* current_block) {
         reinterpret_cast<uintptr_t>(current_block) - *left_block_foooter
         );
 
-    if (reinterpret_cast<uintptr_t>(left_block) >= reinterpret_cast<uintptr_t>(m_start_)
+    if (reinterpret_cast<uintptr_t>(left_block) >= reinterpret_cast<uintptr_t>(m_start_.get())
         && left_block->is_free_ == true) {
 
         size_t left_block_index = find_list_index(left_block->size_);
@@ -210,7 +224,7 @@ void SegregatedListAllocator<T>::merge_with_right_block(Block* current_block) {
         reinterpret_cast<uintptr_t>(current_block) + current_block->size_
         );
 
-    if (reinterpret_cast<uintptr_t>(right_block) < reinterpret_cast<uintptr_t>(m_start_) + m_total_size_
+    if (reinterpret_cast<uintptr_t>(right_block) < reinterpret_cast<uintptr_t>(m_start_.get()) + m_total_size_
         && right_block->is_free_ == true) {
 
         size_t right_block_index = find_list_index(right_block->size_);
@@ -224,13 +238,13 @@ void SegregatedListAllocator<T>::merge_with_right_block(Block* current_block) {
 
 template<typename T>
 void SegregatedListAllocator<T>::add_to_freelist(Block* block, size_t index) {
-    block->free_block_pointers.next_free = m_free_lists_[index];
+    block->free_block_pointers.next_free = (*m_free_lists_ptr_)[index];
     block->free_block_pointers.prev_free = nullptr;
 
-    if (m_free_lists_[index] != nullptr)
-        m_free_lists_[index]->free_block_pointers.prev_free = block;
+    if ((*m_free_lists_ptr_)[index] != nullptr)
+        (*m_free_lists_ptr_)[index]->free_block_pointers.prev_free = block;
 
-    m_free_lists_[index] = block;
+    (*m_free_lists_ptr_)[index] = block;
 }
 
 template<typename T>
@@ -243,9 +257,33 @@ void SegregatedListAllocator<T>::update_footer(Block* block) const {
 
 template<typename T>
 size_t SegregatedListAllocator<T>::find_list_index(const size_t size) const {
-    if (size <= 16)
+    if (size <= 16) 
         return 0;
-    size_t index = static_cast<size_t>(std::log2(size - 1)) - 3;
-    const size_t max_index = 13;
-    return std::min(index, max_index);
+
+    unsigned long index;
+#ifdef _MSC_VER
+    _BitScanReverse64(&index, size - 1);
+#else 
+    index = (63 - __builtin_clzll(size - 1));
+#endif
+
+    size_t list_index = index - 3;
+
+    const size_t max_index = NUM_FREE_LISTS - 1;
+    return std::min(list_index, max_index);
+}
+
+template<typename T>
+std::shared_ptr<std::vector<Block*>> SegregatedListAllocator<T>::get_m_free_lists_ptr() const {
+    return m_free_lists_ptr_;
+}
+
+template<typename T>
+std::shared_ptr<void> SegregatedListAllocator<T>::get_m_start() const {
+    return m_start_;
+}
+
+template<typename T>
+size_t SegregatedListAllocator<T>::get_m_total_size() const {
+    return m_total_size_;
 }

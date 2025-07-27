@@ -29,14 +29,9 @@ public:
     GeneralPurposeAllocator();
     GeneralPurposeAllocator(const GeneralPurposeAllocator& other) = default;
 
-    // Шаблонный конструктор копирования
     template<typename U>
     GeneralPurposeAllocator(const GeneralPurposeAllocator<U>& other) noexcept;
-
-    // Также добавьте эту строку в private секцию, чтобы конструктор мог работать
-    template<typename U>
-    friend class GeneralPurposeAllocator;
-
+  
     GeneralPurposeAllocator& operator=(const GeneralPurposeAllocator&) = delete;
     GeneralPurposeAllocator(GeneralPurposeAllocator&&) = delete;
     GeneralPurposeAllocator& operator=(GeneralPurposeAllocator&&) = delete;
@@ -60,6 +55,10 @@ public:
     size_t get_m_total_size() const;
 
 private:
+
+    template<typename U>
+    friend class GeneralPurposeAllocator;
+
     T* allocate_from_free_list(size_t requested_size);
     T* allocate_large_block(size_t required_size);
     Block* find_first_fit(size_t total_neded_size) const;

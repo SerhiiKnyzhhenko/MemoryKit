@@ -24,7 +24,7 @@ void benchmark_std_vector() {
 }
 
 
-void benchmark_custom_vector() {
+void benchmark_GeneralPurposeAllocator_vector() {
     print_benchmarks_header("Benchmarking std::vector with GeneralPurposeAllocator");
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -45,5 +45,30 @@ void benchmark_custom_vector() {
 
 void run_general_purpose_allocator_benchmarks() {
     benchmark_std_vector();
-    benchmark_custom_vector();
+    benchmark_GeneralPurposeAllocator_vector();
+}
+
+
+void benchmark_SegregatedListAllocator_vector() {
+    print_benchmarks_header("Benchmarking std::vector with SegregatedListAllocator");
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    std::vector<int, SegregatedListAllocator<int>> vec;
+    for (int i = 0; i < 1000; ++i) {
+        vec.reserve(10000);
+        for (int j = 0; j < 10000; ++j) {
+            vec.push_back(j);
+        }
+        vec.clear();
+    }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> duration = end - start;
+    std::cout << "Total time: " << duration.count() << " ms" << std::endl;
+}
+
+void run_segregated_list_allocator_benchmarks() {
+    benchmark_std_vector();
+    benchmark_SegregatedListAllocator_vector();
 }

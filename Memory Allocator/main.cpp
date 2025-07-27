@@ -13,6 +13,7 @@
 int main() {
     
     run_general_purpose_allocator_benchmarks();
+    run_segregated_list_allocator_benchmarks();
 
     return 0;
 }
