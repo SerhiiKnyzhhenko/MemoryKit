@@ -33,6 +33,8 @@ private:
     static constexpr size_t ALIGNMENT = 16;
     static constexpr size_t NUM_FREE_LISTS = 14;
 
+    uint64_t m_free_lists_bitmap_ = 0;
+
 public:
     SegregatedListAllocator(size_t size);
     SegregatedListAllocator();
@@ -62,6 +64,7 @@ public:
     std::shared_ptr<std::vector<Block*>> get_m_free_lists_ptr() const;
     std::shared_ptr<void> get_m_start() const;
     size_t get_m_total_size() const;
+    uint64_t get_m_free_lists_bitmap() const;
 
 private:
 

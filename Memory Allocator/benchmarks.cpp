@@ -69,6 +69,6 @@ void benchmark_SegregatedListAllocator_vector() {
 }
 
 void run_segregated_list_allocator_benchmarks() {
-    benchmark_std_vector();
     benchmark_SegregatedListAllocator_vector();
+    benchmark_std_vector();
 }

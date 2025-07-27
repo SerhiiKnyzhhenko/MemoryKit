@@ -33,6 +33,7 @@ SegregatedListAllocator<T>::SegregatedListAllocator(size_t size) {
     size_t index = find_list_index(m_total_size_);
     (*m_free_lists_ptr_)[index] = initial_block;
 
+    m_free_lists_bitmap_ |= (1ULL << index);
 }
 
 template<typename T>
@@ -46,7 +47,8 @@ template<typename U>
 SegregatedListAllocator<T>::SegregatedListAllocator(const SegregatedListAllocator<U>& other) noexcept
     : m_start_(other.get_m_start()),
     m_total_size_(other.get_m_total_size()),
-    m_free_lists_ptr_(other.get_m_free_lists_ptr()) {
+    m_free_lists_ptr_(other.get_m_free_lists_ptr()),
+    m_free_lists_bitmap_(other.get_m_free_lists_bitmap()) {
 
 }
 
@@ -90,35 +92,36 @@ void SegregatedListAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
 
 template<typename T>
 T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
-    size_t index = find_list_index(required_size);
-
+    size_t ideal_index = find_list_index(required_size);
     size_t found_index = 0;
-    Block* found_block = nullptr;
 
-    for (size_t i = index; i < (*m_free_lists_ptr_).size(); i++) {
-        if ((*m_free_lists_ptr_)[i] != nullptr) {
-            found_block = (*m_free_lists_ptr_)[i];
-            found_index = i;
-            break;
-        }        
-    }
-    if (found_block == nullptr)
+    uint64_t shifted_bitmap = m_free_lists_bitmap_ >> ideal_index;
+
+    if (shifted_bitmap == 0) {
         return nullptr;
+    }
+
+    unsigned long offset;
+#ifdef _MSC_VER
+    _BitScanForward64(&offset, shifted_bitmap);
+#else //GCC/Clang
+    offset = __builtin_ffsll(shifted_bitmap) - 1;
+#endif
+
+    found_index = ideal_index + offset;
+
+    Block* found_block = (*m_free_lists_ptr_)[found_index];
 
     unlink_from_freelist(found_block, found_index);
 
     if ((found_block->size_ - required_size) > sizeof(Block)) {
-
         Block* remainder_block = split_block(found_block, required_size);
         size_t remainder_index = find_list_index(remainder_block->size_);
         add_to_freelist(remainder_block, remainder_index);
-  
-        return (T*)found_block->user_data;
     }
-    else {
-        found_block->is_free_ = false;
-        return (T*)found_block->user_data;
-    }
+
+    found_block->is_free_ = false;
+    return (T*)found_block->user_data;
 }
 
 template<typename T>
@@ -179,6 +182,10 @@ void SegregatedListAllocator<T>::unlink_from_freelist(Block* block_to_remove, si
     if (next_block != nullptr) {
         next_block->free_block_pointers.prev_free = nullptr;
     }
+
+    if ((*m_free_lists_ptr_)[index] == nullptr) {
+        m_free_lists_bitmap_ &= ~(1ULL << index); 
+    }
 }
 
 template<typename T>
@@ -238,6 +245,11 @@ void SegregatedListAllocator<T>::merge_with_right_block(Block* current_block) {
 
 template<typename T>
 void SegregatedListAllocator<T>::add_to_freelist(Block* block, size_t index) {
+
+    if ((*m_free_lists_ptr_)[index] == nullptr) {
+        m_free_lists_bitmap_ |= (1ULL << index);
+    }
+
     block->free_block_pointers.next_free = (*m_free_lists_ptr_)[index];
     block->free_block_pointers.prev_free = nullptr;
 
@@ -286,4 +298,9 @@ std::shared_ptr<void> SegregatedListAllocator<T>::get_m_start() const {
 template<typename T>
 size_t SegregatedListAllocator<T>::get_m_total_size() const {
     return m_total_size_;
+}
+
+template<typename T>
+uint64_t SegregatedListAllocator<T>::get_m_free_lists_bitmap() const {
+    return m_free_lists_bitmap_;
 }
