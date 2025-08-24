@@ -34,7 +34,9 @@ private:
     static constexpr size_t NUM_FREE_LISTS = 14;
     static constexpr size_t HEADER_SIZE = sizeof(Block);
     static constexpr size_t FOOTER_SIZE = sizeof(size_t);
-
+    static constexpr size_t FENCEPOST_SIZE  = sizeof(size_t);
+    static constexpr uint32_t FENCEPOST_VALUE = 0xDEADBEEF;
+ 
     uint64_t m_free_lists_bitmap_ = 0;
 
 public:
