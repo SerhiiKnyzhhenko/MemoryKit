@@ -91,13 +91,15 @@ void GeneralPurposeAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
 
 template<typename T>
 T* GeneralPurposeAllocator<T>::allocate_from_free_list(size_t required_size) {
-    Block* current_block = find_first_fit(required_size);
+    const size_t total_needed_size = required_size + HEADER_SIZE + FOOTER_SIZE;
+    Block* current_block = find_first_fit(total_needed_size);
+
     if (current_block == nullptr)
         return nullptr;
 
-    if (current_block->size_ > required_size + sizeof(Block)) {
+    if (current_block->size_ > total_needed_size + HEADER_SIZE + FOOTER_SIZE) {
 
-        Block* new_block = split_block(current_block, required_size);
+        Block* new_block = split_block(current_block, total_needed_size);
 
         update_freelist_after_allocation(current_block, new_block);
 
@@ -109,10 +111,11 @@ T* GeneralPurposeAllocator<T>::allocate_from_free_list(size_t required_size) {
         return (T*)current_block->user_data;
     }
 }
+
 template<typename T>
 T* GeneralPurposeAllocator<T>::allocate_large_block(size_t required_size) {
     size_t aligment_size = (required_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
-    size_t total_size = aligment_size + sizeof(Block);
+    size_t total_size = aligment_size + HEADER_SIZE;
 
     void* block_start = nullptr;
 
@@ -149,16 +152,17 @@ Block* GeneralPurposeAllocator<T>::find_first_fit(size_t total_neded_size) const
 }
 
 template<typename T>
-Block* GeneralPurposeAllocator<T>::split_block(Block* block_to_split, size_t required_size) {
-    size_t allocated_size = required_size + sizeof(Block);
-    size_t new_block_size = block_to_split->size_ - allocated_size;
+Block* GeneralPurposeAllocator<T>::split_block(Block* block_to_split, size_t total_allocated_size) {
+    size_t aligned_allocated_size = (total_allocated_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 
-    Block* new_block = reinterpret_cast<Block*>(reinterpret_cast<uintptr_t>(block_to_split) + allocated_size);
+    size_t new_block_size = block_to_split->size_ - aligned_allocated_size;
+
+    Block* new_block = reinterpret_cast<Block*>(reinterpret_cast<uintptr_t>(block_to_split) + aligned_allocated_size);
     new_block->size_ = new_block_size;
     new_block->is_free_ = true;
     new_block->is_mmapped_ = false;
 
-    block_to_split->size_ = allocated_size;
+    block_to_split->size_ = aligned_allocated_size;
     block_to_split->is_free_ = false;
     block_to_split->is_mmapped_ = false;
 
@@ -172,6 +176,9 @@ template<typename T>
 void GeneralPurposeAllocator<T>::update_freelist_after_allocation(Block* old_block, Block* new_block) {
     Block* next_block = old_block->free_block_pointers.next_free;
     Block* prev_block = old_block->free_block_pointers.prev_free;
+
+    if (new_block->size_ == 18446744073709494616)
+        int a = 1;
 
     if (prev_block != nullptr) {
         prev_block->free_block_pointers.next_free = new_block;
@@ -218,7 +225,7 @@ Block* GeneralPurposeAllocator<T>::coalesce(Block* current_block, bool* merging_
 template<typename T>
 Block* GeneralPurposeAllocator<T>::merge_with_left_block(Block* current_block, bool* merging_with_the_left_block) {
     size_t* left_block_foooter = reinterpret_cast<size_t*>(
-        reinterpret_cast<uintptr_t>(current_block) - sizeof(size_t)
+        reinterpret_cast<uintptr_t>(current_block) - FOOTER_SIZE
         );
 
     Block* left_block = reinterpret_cast<Block*>(
@@ -271,7 +278,7 @@ void GeneralPurposeAllocator<T>::add_to_freelist(Block* block) {
 template<typename T>
 void GeneralPurposeAllocator<T>::update_footer(Block* block) const {
     size_t* current_block_footer = reinterpret_cast<size_t*>(
-        reinterpret_cast<uintptr_t>(block) + block->size_ - sizeof(size_t)
+        reinterpret_cast<uintptr_t>(block) + block->size_ - FOOTER_SIZE
         );
     *current_block_footer = block->size_;
 }

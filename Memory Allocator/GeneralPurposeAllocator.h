@@ -23,6 +23,8 @@ private:
     size_t m_total_size_ = 0;
     static constexpr size_t LARGE_ALLOC_THRESHOLD = 128 * 1024;
     static constexpr size_t ALIGNMENT = 16;
+    static constexpr size_t HEADER_SIZE = sizeof(Block);
+    static constexpr size_t FOOTER_SIZE = sizeof(size_t);
 
 public:
     GeneralPurposeAllocator(size_t size);

@@ -32,6 +32,8 @@ private:
     static constexpr size_t LARGE_ALLOC_THRESHOLD = 128 * 1024;
     static constexpr size_t ALIGNMENT = 16;
     static constexpr size_t NUM_FREE_LISTS = 14;
+    static constexpr size_t HEADER_SIZE = sizeof(Block);
+    static constexpr size_t FOOTER_SIZE = sizeof(size_t);
 
     uint64_t m_free_lists_bitmap_ = 0;
 
@@ -74,10 +76,10 @@ private:
     T* allocate_from_free_list(size_t requested_size);
     T* allocate_large_block(size_t required_size);
     Block* split_block(Block* block_to_split, size_t required_size);
-    void unlink_from_freelist(Block* block_to_remove, size_t index);
     Block* coalesce(Block* block);
     Block* merge_with_left_block(Block* block);
     void merge_with_right_block(Block* block);
+    void unlink_from_freelist(Block* block_to_remove, size_t index);
     void add_to_freelist(Block* block, size_t index);
     void update_footer(Block* block) const;
     size_t find_list_index(const size_t size) const;

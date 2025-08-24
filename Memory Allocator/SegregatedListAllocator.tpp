@@ -92,7 +92,8 @@ void SegregatedListAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
 
 template<typename T>
 T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
-    size_t ideal_index = find_list_index(required_size);
+    const size_t total_needed_size = required_size + HEADER_SIZE + FOOTER_SIZE;
+    size_t ideal_index = find_list_index(total_needed_size);
     size_t found_index = 0;
 
     uint64_t shifted_bitmap = m_free_lists_bitmap_ >> ideal_index;
@@ -114,20 +115,22 @@ T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
 
     unlink_from_freelist(found_block, found_index);
 
-    if ((found_block->size_ - required_size) > sizeof(Block)) {
-        Block* remainder_block = split_block(found_block, required_size);
+    if (found_block->size_ >= total_needed_size + HEADER_SIZE + FOOTER_SIZE) {
+        Block* remainder_block = split_block(found_block, total_needed_size);
         size_t remainder_index = find_list_index(remainder_block->size_);
         add_to_freelist(remainder_block, remainder_index);
     }
+    else {
+        found_block->is_free_ = false;
+    }
 
-    found_block->is_free_ = false;
     return (T*)found_block->user_data;
 }
 
 template<typename T>
 T* SegregatedListAllocator<T>::allocate_large_block(size_t required_size) {
     size_t aligment_size = (required_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
-    size_t total_size = aligment_size + sizeof(Block);
+    size_t total_size = aligment_size + HEADER_SIZE;
 
     void* block_start = nullptr;
 
@@ -152,18 +155,17 @@ T* SegregatedListAllocator<T>::allocate_large_block(size_t required_size) {
 }
 
 template<typename T>
-Block* SegregatedListAllocator<T>::split_block(Block* block_to_split, size_t required_size) {
-    size_t aligned_req_size = (required_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
-    size_t allocated_size = aligned_req_size + sizeof(Block);
+Block* SegregatedListAllocator<T>::split_block(Block* block_to_split, size_t total_needed_size) {
+    size_t aligned_allocated_size = (total_needed_size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 
-    size_t new_block_size = block_to_split->size_ - allocated_size;
+    size_t new_block_size = block_to_split->size_ - aligned_allocated_size;
 
-    Block* new_block = reinterpret_cast<Block*>(reinterpret_cast<uintptr_t>(block_to_split) + allocated_size);
+    Block* new_block = reinterpret_cast<Block*>(reinterpret_cast<uintptr_t>(block_to_split) + aligned_allocated_size);
     new_block->size_ = new_block_size;
     new_block->is_free_ = true;
     new_block->is_mmapped_ = false;
 
-    block_to_split->size_ = allocated_size;
+    block_to_split->size_ = aligned_allocated_size;
     block_to_split->is_free_ = false;
     block_to_split->is_mmapped_ = false;
 
@@ -174,7 +176,7 @@ Block* SegregatedListAllocator<T>::split_block(Block* block_to_split, size_t req
 }
 
 template<typename T>
-void SegregatedListAllocator<T>::unlink_from_freelist(Block* block_to_remove, size_t index) {
+inline void SegregatedListAllocator<T>::unlink_from_freelist(Block* block_to_remove, size_t index) {
     Block* next_block = block_to_remove->free_block_pointers.next_free;
 
     (*m_free_lists_ptr_)[index] = next_block;
@@ -189,7 +191,7 @@ void SegregatedListAllocator<T>::unlink_from_freelist(Block* block_to_remove, si
 }
 
 template<typename T>
-Block* SegregatedListAllocator<T>::coalesce(Block* current_block) {
+inline Block* SegregatedListAllocator<T>::coalesce(Block* current_block) {
     if (reinterpret_cast<uintptr_t>(current_block) > reinterpret_cast<uintptr_t>(m_start_.get())) {
         current_block = merge_with_left_block(current_block);
     }
@@ -202,7 +204,7 @@ Block* SegregatedListAllocator<T>::coalesce(Block* current_block) {
 template<typename T>
 Block* SegregatedListAllocator<T>::merge_with_left_block(Block* current_block) {
     size_t* left_block_foooter = reinterpret_cast<size_t*>(
-        reinterpret_cast<uintptr_t>(current_block) - sizeof(size_t)
+        reinterpret_cast<uintptr_t>(current_block) - FOOTER_SIZE
         );
 
     Block* left_block = reinterpret_cast<Block*>(
@@ -244,7 +246,7 @@ void SegregatedListAllocator<T>::merge_with_right_block(Block* current_block) {
 }
 
 template<typename T>
-void SegregatedListAllocator<T>::add_to_freelist(Block* block, size_t index) {
+inline void SegregatedListAllocator<T>::add_to_freelist(Block* block, size_t index) {
 
     if ((*m_free_lists_ptr_)[index] == nullptr) {
         m_free_lists_bitmap_ |= (1ULL << index);
@@ -260,15 +262,15 @@ void SegregatedListAllocator<T>::add_to_freelist(Block* block, size_t index) {
 }
 
 template<typename T>
-void SegregatedListAllocator<T>::update_footer(Block* block) const {
+inline void SegregatedListAllocator<T>::update_footer(Block* block) const {
     size_t* current_block_footer = reinterpret_cast<size_t*>(
-        reinterpret_cast<uintptr_t>(block) + block->size_ - sizeof(size_t)
+        reinterpret_cast<uintptr_t>(block) + block->size_ - FOOTER_SIZE
         );
     *current_block_footer = block->size_;
 }
 
 template<typename T>
-size_t SegregatedListAllocator<T>::find_list_index(const size_t size) const {
+inline size_t SegregatedListAllocator<T>::find_list_index(const size_t size) const {
     if (size <= 16) 
         return 0;
 
@@ -286,21 +288,21 @@ size_t SegregatedListAllocator<T>::find_list_index(const size_t size) const {
 }
 
 template<typename T>
-std::shared_ptr<std::vector<Block*>> SegregatedListAllocator<T>::get_m_free_lists_ptr() const {
+inline std::shared_ptr<std::vector<Block*>> SegregatedListAllocator<T>::get_m_free_lists_ptr() const {
     return m_free_lists_ptr_;
 }
 
 template<typename T>
-std::shared_ptr<void> SegregatedListAllocator<T>::get_m_start() const {
+inline std::shared_ptr<void> SegregatedListAllocator<T>::get_m_start() const {
     return m_start_;
 }
 
 template<typename T>
-size_t SegregatedListAllocator<T>::get_m_total_size() const {
+inline size_t SegregatedListAllocator<T>::get_m_total_size() const {
     return m_total_size_;
 }
 
 template<typename T>
-uint64_t SegregatedListAllocator<T>::get_m_free_lists_bitmap() const {
+inline uint64_t SegregatedListAllocator<T>::get_m_free_lists_bitmap() const {
     return m_free_lists_bitmap_;
 }
