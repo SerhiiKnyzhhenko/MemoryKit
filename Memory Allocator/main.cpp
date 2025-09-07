@@ -32,14 +32,12 @@ void run_fragmentation_benchmark(TAllocator& alloc, const std::string& allocator
         for (int j = 0; j < ALLOCS_PER_ITER; ++j) {
             pointers.push_back(alloc.allocate(SIZES[size_dist(rng)]));
         }
-        int a = 0;
+        
         // 2. Освобождаем половину
         for (size_t j = 0; j < pointers.size(); j += 2) {
             alloc.deallocate((char*)pointers[j], 1);
             pointers[j] = nullptr; // <-- Помечаем указатель как невалидный
-            a += 1;
-            if (a == 483)
-                a = 483;
+           
         }
 
         // 3. Снова аллоцируем, заполняя "дыры"
@@ -47,10 +45,14 @@ void run_fragmentation_benchmark(TAllocator& alloc, const std::string& allocator
             pointers[j] = alloc.allocate(SIZES[size_dist(rng)]);
         }
         
+        int a = 0;
         // 4. Освобождаем всё, что не было освобождено на шаге 2
         for (void* p : pointers) {
             if (p != nullptr) { // <-- Освобождаем только валидные указатели
                 alloc.deallocate((char*)p, 1);
+                a += 1;
+                if (a == 21)
+                    a = 21;
             }
         }
         pointers.clear();

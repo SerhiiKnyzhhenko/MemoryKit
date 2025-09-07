@@ -81,9 +81,10 @@ private:
     template<typename U>
     friend class SegregatedListAllocator;
 
-    T* allocate_from_free_list(size_t requested_size);.
+    T* allocate_from_free_list(size_t requested_size);
     T* allocate_from_central_storage(size_t requested_size);
     T* allocate_large_block(size_t required_size);
+    void deallocate_to_central_storage(Block* block);
     Block* split_block(Block* block_to_split, size_t required_size);
     Block* coalesce(Block* block);
     Block* merge_with_left_block(Block* block);

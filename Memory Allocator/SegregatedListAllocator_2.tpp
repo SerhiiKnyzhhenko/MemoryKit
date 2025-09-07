@@ -69,60 +69,76 @@ void SegregatedListAllocator<T>::deallocate(T* user_data_ptr) {
 
 template<typename T>
 void SegregatedListAllocator<T>::deallocate(T* user_data_ptr, size_t n) {
-    Block* current_block = reinterpret_cast<Block*>((char*)user_data_ptr - offsetof(Block, user_data));
+   
+    Block* block = reinterpret_cast<Block*>((char*)user_data_ptr - offsetof(Block, user_data));
+    char* block_ptr = (char*)block;
 
-    if (current_block->is_mmapped_) {
+    for (int i = 0; i < NUM_CACHED_LISTS; ++i) {
+        SlabInfo& slab = t_cache.slabs[i];
+        if (slab.start != nullptr && block_ptr >= slab.start && block_ptr < slab.start + slab.size) {
+
+            Block* block_to_return = (Block*)block_ptr;
+            block_to_return->free_block_pointers.next_free = t_cache.free_lists[i];
+            t_cache.free_lists[i] = block_to_return;
+
+            return;
+        }
+    }
+
+    deallocate_to_central_storage(block);
+}
+
+template<typename T>
+void SegregatedListAllocator<T>::deallocate_to_central_storage(Block* block_to_deallocate) {
+
+    if (block_to_deallocate->is_mmapped_) {
 
 #ifdef _WIN32
-        VirtualFree(reinterpret_cast<void*>(current_block), 0, MEM_RELEASE);
+        VirtualFree(reinterpret_cast<void*>(block_to_deallocate), 0, MEM_RELEASE);
         return;
 #else
-        munmap(reinterpret_cast<void*>(current_block), current_block->size_);
+        munmap(reinterpret_cast<void*>(block_to_deallocate), block_to_deallocate->size_);
         return;
 #endif
 
     }
 
-    if (current_block->size_ <= MAX_CACHEABLE_SIZE) {
-        size_t index = size_to_class_map[current_block->size_];
+    update_footer(block_to_deallocate);
 
-        if (t_cache.counts[index] < CACHE_SIZE_LIMIT) {
-            Block* block = t_cache.free_lists[index];
-            t_cache.free_lists[index] = current_block;
-            current_block->free_block_pointers.next_free = block;
-            t_cache.counts[index]++;
-            return;
-        }
-    }
+    block_to_deallocate->is_free_ = true;
 
-    update_footer(current_block);
+    block_to_deallocate = coalesce(block_to_deallocate);
+    size_t index = find_list_index(block_to_deallocate->size_);
+    add_to_freelist(block_to_deallocate, index);
 
-    current_block->is_free_ = true;
-
-    current_block = coalesce(current_block);
-    size_t index = find_list_index(current_block->size_);
-    add_to_freelist(current_block, index);
 }
 
 template<typename T>
 T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
+
     const size_t total_needed_size = required_size + HEADER_SIZE;
 
     //// cache
+    // в allocate_from_free_list, при инициализации кэша
     if (!t_cache.initialized) {
         for (int i = 0; i < NUM_CACHED_LISTS; i++) {
             size_t block_size = size_classes[i];
 
-            size_t slab_request_size = (block_size - HEADER_SIZE) * CACHE_SIZE_LIMIT;
-            char* slab = allocate_from_central_storage(slab_request_size);
+            size_t slab_payload_needed = block_size * CACHE_SIZE_LIMIT;
+            char* slab_start = (char*)allocate_from_central_storage(slab_payload_needed);
 
-            if (slab) {
-                for (int j = 0; j < CACHE_SIZE_LIMIT; j++) {
-                    Block* new_block = reinterpret_cast<Block*>(slab + j * block_size);
-                    new_block->size_ = block_size;
+            if (slab_start) {
+                Block* slab_header = reinterpret_cast<Block*>(slab_start - offsetof(Block, user_data));
+                size_t slab_real_payload_size = slab_header->size_ - HEADER_SIZE - FOOTER_SIZE;
 
-                    new_block->free_block_pointers.next_free = t_cache.free_lists[i];
-                    t_cache.free_lists[i] = new_block;
+                t_cache.slabs[i].start = slab_start;
+                t_cache.slabs[i].size = slab_real_payload_size;
+
+                for (size_t offset = 0; offset + block_size <= slab_real_payload_size; offset += block_size) {
+                    char* new_block_ptr = slab_start + offset;
+                    Block** next_ptr_container = (Block**)new_block_ptr;
+                    *next_ptr_container = t_cache.free_lists[i];
+                    t_cache.free_lists[i] = (Block*)new_block_ptr;
                 }
             }
         }
@@ -136,9 +152,23 @@ T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
         return (T*)block->user_data;
     }
 
+    size_t allocation_size = size_classes[index];
+    size_t required_payload_size = allocation_size - HEADER_SIZE;
+    Block* new_block = (Block*)allocate_from_central_storage(required_payload_size);
+
+    if (new_block)
+        return (T*)new_block;
     //// cache
 
-    size_t ideal_index = find_list_index(allocation_size);
+    return allocate_from_central_storage(required_size);
+}
+
+template<typename T>
+T* SegregatedListAllocator<T>::allocate_from_central_storage(size_t required_size) {
+
+    const size_t total_needed_size = required_size + HEADER_SIZE + FOOTER_SIZE;
+
+    size_t ideal_index = find_list_index(total_needed_size);
     size_t found_index = 0;
 
     uint64_t shifted_bitmap = m_free_lists_bitmap_ >> ideal_index;
@@ -155,20 +185,19 @@ T* SegregatedListAllocator<T>::allocate_from_free_list(size_t required_size) {
 #endif
 
     found_index = ideal_index + offset;
-   
+
     Block* found_block = (*m_free_lists_ptr_)[found_index];
 
     unlink_from_freelist(found_block, found_index);
 
-    if (found_block->size_ >= allocation_size + HEADER_SIZE + FOOTER_SIZE) {
-        Block* remainder_block = split_block(found_block, allocation_size);
+    if (found_block->size_ >= total_needed_size + HEADER_SIZE + FOOTER_SIZE) {
+        Block* remainder_block = split_block(found_block, total_needed_size);
         size_t remainder_index = find_list_index(remainder_block->size_);
         add_to_freelist(remainder_block, remainder_index);
     }
     else {
         found_block->is_free_ = false;
     }
-
     return (T*)found_block->user_data;
 }
 
