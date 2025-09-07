@@ -9,7 +9,7 @@
 #include "GeneralPurposeAllocator.h"
 #include "PoolAllocator.h"
 #include "StackAllocator.h"
-#include "SegregatedListAllocator.h"
+#include "SegregatedListAllocator_2.h"
 
 void print_test_header(const std::string& test_name);
 
