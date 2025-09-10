@@ -14,8 +14,13 @@ const size_t NUM_FREE_LISTS = 32;
 struct ThreadCache {
 
 	Block* free_lists[NUM_FREE_LISTS] = { nullptr };
-	SlabInfo slabs[NUM_FREE_LISTS];
+	std::vector<SlabInfo> slabs;
 	bool initialized = false;
+	std::vector<Block*> owned_slabs;
+
+	void* owner_allocator = nullptr;
+
+	~ThreadCache();
 
 };
 

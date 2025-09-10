@@ -11,6 +11,9 @@ struct Block {
             Block* next_free;
             Block* prev_free;
         }free_block_pointers;
+
+        Block* next_in_cache;
+
         char user_data[1];
     };
 };

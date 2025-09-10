@@ -130,7 +130,6 @@
     <ClInclude Include="benchmarks.h" />
     <ClInclude Include="Block.h" />
     <ClInclude Include="GeneralPurposeAllocator.h" />
-    <ClInclude Include="IAllocator.h" />
     <ClInclude Include="PoolAllocator.h" />
     <ClInclude Include="SegregatedListAllocator.h" />
     <ClInclude Include="SegregatedListAllocator_2.h" />

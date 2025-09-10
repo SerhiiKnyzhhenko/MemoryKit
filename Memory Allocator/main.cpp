@@ -33,10 +33,14 @@ void run_fragmentation_benchmark(TAllocator& alloc, const std::string& allocator
             pointers.push_back(alloc.allocate(SIZES[size_dist(rng)]));
         }
         
+        int a = 0;
         // 2. Освобождаем половину
         for (size_t j = 0; j < pointers.size(); j += 2) {
             alloc.deallocate((char*)pointers[j], 1);
             pointers[j] = nullptr; // <-- Помечаем указатель как невалидный
+            a += 1;
+            if (a == 21)
+                a = 21;
            
         }
 
@@ -45,14 +49,11 @@ void run_fragmentation_benchmark(TAllocator& alloc, const std::string& allocator
             pointers[j] = alloc.allocate(SIZES[size_dist(rng)]);
         }
         
-        int a = 0;
+        
         // 4. Освобождаем всё, что не было освобождено на шаге 2
         for (void* p : pointers) {
             if (p != nullptr) { // <-- Освобождаем только валидные указатели
                 alloc.deallocate((char*)p, 1);
-                a += 1;
-                if (a == 21)
-                    a = 21;
             }
         }
         pointers.clear();
@@ -111,7 +112,7 @@ void benchmark_standard_new_fragmentation() {
 int main() {
     // Создаём экземпляры аллокаторов
     GeneralPurposeAllocator<char> gp_alloc(5 * 1024 * 1024); // 5 MB
-    SegregatedListAllocator<char> seg_alloc(5 * 1024 * 1024); // 5 MB
+    SegregatedListAllocator<char> seg_alloc(250 * 1024 * 1024); // 5 MB
 
     // Запускаем тесты
     benchmark_standard_new_fragmentation();

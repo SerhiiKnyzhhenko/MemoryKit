@@ -10,6 +10,7 @@
 #include "Block.h"
 #include "ThreadCache.h"
 #include "ClassMap.h"
+#include <mutex>
 
 
 #include <limits> 
@@ -35,15 +36,21 @@ class SegregatedListAllocator {
 
 private:
     std::shared_ptr<std::vector<Block*>> m_free_lists_ptr_;
+    std::shared_ptr<void> m_main_memory_handle_;
+    std::shared_ptr<void> m_cache_pool_start_;
     std::shared_ptr<void> m_start_;
     size_t m_total_size_ = 0;
+    size_t m_cache_pool_offset = 0;
     static constexpr size_t LARGE_ALLOC_THRESHOLD = 128 * 1024;
     static constexpr size_t ALIGNMENT = 16;
-    static constexpr size_t NUM_FREE_LISTS = 14;
+    static constexpr size_t NUM_FREE_LISTS = 32;
     static constexpr size_t HEADER_SIZE = sizeof(Block);
     static constexpr size_t FOOTER_SIZE = sizeof(size_t);
+    const size_t CACHE_POOL_SIZE = 2 * 1024 * 1024;
 
     uint64_t m_free_lists_bitmap_ = 0;
+
+    std::mutex m_pool_mutex;
 
 public:
     SegregatedListAllocator(size_t size);
@@ -72,6 +79,8 @@ public:
     void deallocate(T* user_data_ptr, size_t n);
 
     std::shared_ptr<std::vector<Block*>> get_m_free_lists_ptr() const;
+    std::shared_ptr<void> get_m_main_memory_handle() const;
+    std::shared_ptr<void> get_m_cache_pool_start() const;
     std::shared_ptr<void> get_m_start() const;
     size_t get_m_total_size() const;
     uint64_t get_m_free_lists_bitmap() const;
@@ -81,9 +90,14 @@ private:
     template<typename U>
     friend class SegregatedListAllocator;
 
+    friend struct ThreadCache;
+
     T* allocate_from_free_list(size_t requested_size);
     T* allocate_from_central_storage(size_t requested_size);
+    Block* allocate_from_central_storage_raw(size_t requested_size);
     T* allocate_large_block(size_t required_size);
+    void initialize_thread_cache();
+    void refill_thread_cache(size_t index);
     void deallocate_to_central_storage(Block* block);
     Block* split_block(Block* block_to_split, size_t required_size);
     Block* coalesce(Block* block);
@@ -93,6 +107,7 @@ private:
     void add_to_freelist(Block* block, size_t index);
     void update_footer(Block* block) const;
     size_t find_list_index(const size_t size) const;
+    void init(size_t size);
 
 public:
     // Required typedefs for a standard-compliant allocator
